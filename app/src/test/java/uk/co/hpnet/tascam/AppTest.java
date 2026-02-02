@@ -6,6 +6,7 @@ import uk.co.hpnet.tascam.client.FakeTascamServer;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintStream;
 import java.util.Map;
 
@@ -21,23 +22,8 @@ class AppTest {
         );
 
         try (FakeTascamServer server = new FakeTascamServer(presets, 2)) {
-            ByteArrayOutputStream outContent = new ByteArrayOutputStream();
-            PrintStream originalOut = System.out;
-            System.setOut(new PrintStream(outContent));
+            String output = runWithStdin("\n", "list", "--host", "localhost", "-p", String.valueOf(server.getPort()));
             
-            // Provide empty password on stdin
-            ByteArrayInputStream inContent = new ByteArrayInputStream("\n".getBytes());
-            System.setIn(inContent);
-            
-            try {
-                App.main(new String[]{"list", "--host", "localhost", "-p", String.valueOf(server.getPort())});
-            } catch (SecurityException e) {
-                // System.exit() called - expected
-            } finally {
-                System.setOut(originalOut);
-            }
-            
-            String output = outContent.toString();
             assertTrue(output.contains("1: \"Default Mix\""), "Should show preset 1");
             assertTrue(output.contains("2: \"Quiet Mode\""), "Should show preset 2");
             assertTrue(output.contains("*"), "Should mark current preset");
@@ -51,22 +37,8 @@ class AppTest {
         );
 
         try (FakeTascamServer server = new FakeTascamServer(presets, 1)) {
-            ByteArrayOutputStream outContent = new ByteArrayOutputStream();
-            PrintStream originalOut = System.out;
-            System.setOut(new PrintStream(outContent));
+            String output = runWithStdin("\n", "list", "--host", "localhost", "-p", String.valueOf(server.getPort()));
             
-            ByteArrayInputStream inContent = new ByteArrayInputStream("\n".getBytes());
-            System.setIn(inContent);
-            
-            try {
-                App.main(new String[]{"list", "--host", "localhost", "-p", String.valueOf(server.getPort())});
-            } catch (SecurityException e) {
-                // System.exit() called - expected
-            } finally {
-                System.setOut(originalOut);
-            }
-            
-            String output = outContent.toString();
             assertTrue(output.contains("[locked]"), "Should show locked indicator");
         }
     }
@@ -76,23 +48,30 @@ class AppTest {
         Map<Integer, FakeTascamServer.TestPreset> presets = Map.of();
 
         try (FakeTascamServer server = new FakeTascamServer(presets, 0)) {
-            ByteArrayOutputStream outContent = new ByteArrayOutputStream();
-            PrintStream originalOut = System.out;
-            System.setOut(new PrintStream(outContent));
+            String output = runWithStdin("\n", "list", "--host", "localhost", "-p", String.valueOf(server.getPort()));
             
-            ByteArrayInputStream inContent = new ByteArrayInputStream("\n".getBytes());
-            System.setIn(inContent);
-            
-            try {
-                App.main(new String[]{"list", "--host", "localhost", "-p", String.valueOf(server.getPort())});
-            } catch (SecurityException e) {
-                // System.exit() called - expected
-            } finally {
-                System.setOut(originalOut);
-            }
-            
-            String output = outContent.toString();
             assertTrue(output.contains("No presets found"), "Should show no presets message");
         }
+    }
+
+    /**
+     * Runs App.run() with captured stdout and provided stdin.
+     */
+    private String runWithStdin(String stdinContent, String... args) {
+        PrintStream originalOut = System.out;
+        InputStream originalIn = System.in;
+        
+        ByteArrayOutputStream outContent = new ByteArrayOutputStream();
+        System.setOut(new PrintStream(outContent));
+        System.setIn(new ByteArrayInputStream(stdinContent.getBytes()));
+        
+        try {
+            App.run(args);
+        } finally {
+            System.setOut(originalOut);
+            System.setIn(originalIn);
+        }
+        
+        return outContent.toString();
     }
 }

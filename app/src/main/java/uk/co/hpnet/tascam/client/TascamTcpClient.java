@@ -39,7 +39,7 @@ public class TascamTcpClient implements TascamClient {
     /**
      * Creates a client with a custom CID counter (for testing).
      */
-    public TascamTcpClient(AtomicInteger cidCounter) {
+    TascamTcpClient(AtomicInteger cidCounter) {
         this.cidCounter = cidCounter;
     }
 

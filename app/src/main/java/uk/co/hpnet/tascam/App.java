@@ -88,10 +88,17 @@ public class App implements Callable<Integer> {
         return 0;
     }
 
-    public static void main(String[] args) {
-        int exitCode = new CommandLine(new App())
+    /**
+     * Executes the CLI with the given arguments and returns the exit code.
+     * Use this for testing; main() calls this then System.exit().
+     */
+    static int run(String[] args) {
+        return new CommandLine(new App())
                 .addSubcommand("list", new ListCommand())
                 .execute(args);
-        System.exit(exitCode);
+    }
+
+    public static void main(String[] args) {
+        System.exit(run(args));
     }
 }
