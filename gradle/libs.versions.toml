@@ -6,12 +6,15 @@ guava = "33.4.6-jre"
 junit-jupiter = "5.12.1"
 picocli = "4.7.6"
 shadow = "8.3.6"
+log4j = "2.24.3"
 
 [libraries]
 guava = { module = "com.google.guava:guava", version.ref = "guava" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }
 picocli = { module = "info.picocli:picocli", version.ref = "picocli" }
 picocli-codegen = { module = "info.picocli:picocli-codegen", version.ref = "picocli" }
+log4j-api = { module = "org.apache.logging.log4j:log4j-api", version.ref = "log4j" }
+log4j-core = { module = "org.apache.logging.log4j:log4j-core", version.ref = "log4j" }
 
 [plugins]
 graalvm-native = { id = "org.graalvm.buildtools.native", version = "0.10.6" }

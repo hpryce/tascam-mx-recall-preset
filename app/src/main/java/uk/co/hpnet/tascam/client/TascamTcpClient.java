@@ -1,12 +1,12 @@
 package uk.co.hpnet.tascam.client;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import uk.co.hpnet.tascam.model.Preset;
 
 import java.io.*;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
@@ -17,9 +17,10 @@ import java.util.regex.Pattern;
  */
 public class TascamTcpClient implements TascamClient {
 
+    private static final Logger logger = LogManager.getLogger(TascamTcpClient.class);
+
     private static final int DEFAULT_TIMEOUT_MS = 10000;
     private static final AtomicInteger GLOBAL_CID_COUNTER = new AtomicInteger(1000);
-    private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
     
     private static final Pattern PRESET_NAME_PATTERN = Pattern.compile("PRESET/(\\d+)/NAME:\"([^\"]+)\"");
     private static final Pattern PRESET_LOCK_PATTERN = Pattern.compile("PRESET/(\\d+)/LOCK:(ON|OFF)");
@@ -28,7 +29,6 @@ public class TascamTcpClient implements TascamClient {
     private static final Pattern CURRENT_NAME_PATTERN = Pattern.compile("PRESET/NAME:\"([^\"]+)\"");
 
     private final AtomicInteger cidCounter;
-    private boolean debugEnabled = false;
     private Socket socket;
     private BufferedReader reader;
     private PrintWriter writer;
@@ -47,23 +47,9 @@ public class TascamTcpClient implements TascamClient {
         this.cidCounter = cidCounter;
     }
 
-    /**
-     * Enable debug logging to stderr.
-     */
-    public void setDebugEnabled(boolean enabled) {
-        this.debugEnabled = enabled;
-    }
-
-    private void debug(String message) {
-        if (debugEnabled) {
-            System.err.printf("%s [DEBUG] TascamTcpClient - %s%n", 
-                LocalTime.now().format(TIME_FORMAT), message);
-        }
-    }
-
     @Override
     public void connect(String host, int port, String password) throws IOException {
-        debug("Connecting to " + host + ":" + port);
+        logger.debug("Connecting to {}:{}", host, port);
         socket = new Socket(host, port);
         socket.setSoTimeout(DEFAULT_TIMEOUT_MS);
         reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
@@ -79,7 +65,7 @@ public class TascamTcpClient implements TascamClient {
         }
 
         // Send password
-        debug("Sending password");
+        logger.debug("Sending password");
         sendRaw(password + "\r\n");
 
         // Read login result
@@ -93,12 +79,12 @@ public class TascamTcpClient implements TascamClient {
         if (!response.contains("Login Successful")) {
             throw new IOException("Login failed: " + response);
         }
-        debug("Login successful");
+        logger.debug("Login successful");
     }
 
     @Override
     public void close() {
-        debug("Closing connection");
+        logger.debug("Closing connection");
         try {
             if (socket != null && !socket.isClosed()) {
                 socket.close();
@@ -156,13 +142,13 @@ public class TascamTcpClient implements TascamClient {
     private String readLine() throws IOException {
         String line = reader.readLine();
         if (line != null) {
-            debug("RECV: " + line);
+            logger.debug("RECV: {}", line);
         }
         return line;
     }
 
     private String sendCommand(String command) throws IOException {
-        debug("SEND: " + command);
+        logger.debug("SEND: {}", command);
         writer.print(command + "\r\n");
         writer.flush();
         
