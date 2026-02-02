@@ -172,8 +172,13 @@ public class FakeTascamServer implements AutoCloseable {
             }
             
             currentPresetNumber.set(presetNumber);
-            // Send OK response, then NOTIFY will be read by client
-            return "OK SET CID:" + cid + " \r\nNOTIFY PRESET/CUR:" + presetNumber + " PRESET/NAME:\"" + preset.name() + "\"";
+            // Simulate real mixer behavior: OK response, then multiple NOTIFYs before preset NOTIFY
+            // Real mixer sends mute changes, level changes, etc. before the preset change NOTIFY
+            return "OK SET CID:" + cid + " \r\n" +
+                   "NOTIFY MUTE/1:OFF\r\n" +
+                   "NOTIFY MUTE/2:OFF\r\n" +
+                   "NOTIFY LEVEL/1:-12.0\r\n" +
+                   "NOTIFY PRESET/CUR:" + presetNumber + " PRESET/NAME:\"" + preset.name() + "\"";
         }
         
         return "OK SET " + params + ":ERR1 CID:" + cid + " ";

@@ -156,6 +156,52 @@ class TascamTcpClientTest {
     }
 
     @Test
+    void recallCurrentPresetIsNoOp() throws Exception {
+        Map<Integer, FakeTascamServer.TestPreset> presets = Map.of(
+            1, new FakeTascamServer.TestPreset("Default Mix", false),
+            2, new FakeTascamServer.TestPreset("Quiet Mode", false)
+        );
+
+        try (FakeTascamServer server = new FakeTascamServer(presets, 2);
+             TascamClient client = createTestClient()) {
+            
+            client.connect("localhost", server.getPort(), "");
+            
+            // Already on preset 2, recall preset 2 should be a no-op
+            client.recallPreset(2);
+            
+            // Sleep should NOT be called since we skip the recall
+            verify(mockSleeper, never()).sleep(anyLong());
+            
+            // Still on preset 2
+            assertEquals(2, server.getCurrentPresetNumber());
+        }
+    }
+
+    @Test
+    void recallPresetHandlesMultipleNotifications() throws Exception {
+        // This test verifies that the client correctly waits for NOTIFY PRESET/CUR
+        // and ignores other NOTIFYs (mutes, levels, etc.) that come before it
+        Map<Integer, FakeTascamServer.TestPreset> presets = Map.of(
+            1, new FakeTascamServer.TestPreset("Default Mix", false),
+            2, new FakeTascamServer.TestPreset("Quiet Mode", false)
+        );
+
+        try (FakeTascamServer server = new FakeTascamServer(presets, 1);
+             TascamClient client = createTestClient()) {
+            
+            client.connect("localhost", server.getPort(), "");
+            
+            // Recall preset 2 - FakeTascamServer sends multiple NOTIFYs before preset NOTIFY
+            client.recallPreset(2);
+            
+            // Should complete successfully despite multiple NOTIFYs
+            assertEquals(2, server.getCurrentPresetNumber());
+            verify(mockSleeper).sleep(5000);
+        }
+    }
+
+    @Test
     void recallPresetWithInvalidNumberThrows() throws IOException {
         Map<Integer, FakeTascamServer.TestPreset> presets = Map.of(
             1, new FakeTascamServer.TestPreset("Test", false)
