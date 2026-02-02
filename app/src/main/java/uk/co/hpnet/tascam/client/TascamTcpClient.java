@@ -145,12 +145,9 @@ public class TascamTcpClient implements TascamClient {
             throw new IllegalArgumentException("Preset number must be between 1 and 50");
         }
         
-        // Check if we're already on this preset - if so, no-op
+        // Check if we're already on this preset
         Optional<Preset> currentBefore = getCurrentPreset();
-        if (currentBefore.isPresent() && currentBefore.get().number() == presetNumber) {
-            logger.debug("Already on preset {}, skipping recall", presetNumber);
-            return;
-        }
+        boolean alreadyOnPreset = currentBefore.isPresent() && currentBefore.get().number() == presetNumber;
         
         String cid = generateCid();
         String response = sendCommand("SET PRESET/LOAD:" + presetNumber + " CID:" + cid);
@@ -161,26 +158,24 @@ public class TascamTcpClient implements TascamClient {
         }
         
         // Wait for NOTIFY PRESET/CUR:<n> confirming the preset change is complete
-        // The mixer sends multiple NOTIFYs (mutes, levels, etc.) before the preset NOTIFY
-        String expectedNotify = "NOTIFY PRESET/CUR:" + presetNumber;
-        String notify;
-        while ((notify = readLine()) != null) {
-            logger.debug("Received: {}", notify);
-            if (notify.startsWith(expectedNotify)) {
-                logger.debug("Preset change confirmed: {}", notify);
-                break;
+        // If already on this preset, mixer won't send NOTIFY - skip waiting for it
+        if (!alreadyOnPreset) {
+            // The mixer sends multiple NOTIFYs (mutes, levels, etc.) before the preset NOTIFY
+            String expectedNotify = "NOTIFY PRESET/CUR:" + presetNumber;
+            String notify;
+            while ((notify = readLine()) != null) {
+                logger.debug("Received: {}", notify);
+                if (notify.startsWith(expectedNotify)) {
+                    logger.debug("Preset change confirmed: {}", notify);
+                    break;
+                }
+                // Continue reading other NOTIFYs until we get the preset one
             }
-            // Continue reading other NOTIFYs until we get the preset one
         }
         
         // Wait for mixer to stabilize after preset load
         if (recallWaitMs > 0) {
-            try {
-                sleeper.sleep(recallWaitMs);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new IOException("Interrupted while waiting for preset load", e);
-            }
+            sleeper.sleep(recallWaitMs);
         }
         
         // Verify the preset was actually loaded

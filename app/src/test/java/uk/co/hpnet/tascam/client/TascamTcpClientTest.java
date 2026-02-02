@@ -156,7 +156,7 @@ class TascamTcpClientTest {
     }
 
     @Test
-    void recallCurrentPresetIsNoOp() throws Exception {
+    void recallCurrentPresetStillRecallsButSkipsNotifyWait() throws Exception {
         Map<Integer, FakeTascamServer.TestPreset> presets = Map.of(
             1, new FakeTascamServer.TestPreset("Default Mix", false),
             2, new FakeTascamServer.TestPreset("Quiet Mode", false)
@@ -167,11 +167,12 @@ class TascamTcpClientTest {
             
             client.connect("localhost", server.getPort(), "");
             
-            // Already on preset 2, recall preset 2 should be a no-op
+            // Already on preset 2, recall preset 2 should still recall (settings may have changed)
+            // but skip waiting for NOTIFY since mixer won't send one
             client.recallPreset(2);
             
-            // Sleep should NOT be called since we skip the recall
-            verify(mockSleeper, never()).sleep(anyLong());
+            // Sleep IS called since we still wait for stabilization
+            verify(mockSleeper).sleep(5000);
             
             // Still on preset 2
             assertEquals(2, server.getCurrentPresetNumber());

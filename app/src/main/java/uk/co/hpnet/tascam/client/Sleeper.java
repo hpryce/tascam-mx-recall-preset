@@ -7,16 +7,24 @@ public interface Sleeper {
     
     /**
      * Sleep for the specified duration.
+     * Implementations should handle InterruptedException internally.
      *
      * @param millis milliseconds to sleep
-     * @throws InterruptedException if the sleep is interrupted
+     * @throws RuntimeException if the sleep is interrupted
      */
-    void sleep(long millis) throws InterruptedException;
+    void sleep(long millis);
     
     /**
      * Default implementation using Thread.sleep.
      */
     static Sleeper defaultSleeper() {
-        return Thread::sleep;
+        return millis -> {
+            try {
+                Thread.sleep(millis);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("Sleep interrupted", e);
+            }
+        };
     }
 }
