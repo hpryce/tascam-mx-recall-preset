@@ -24,11 +24,14 @@ import java.util.concurrent.Callable;
          description = "List and recall presets on Tascam MX-DCP series mixers")
 public class App implements Callable<Integer> {
 
+    @Option(names = {"-d", "--debug"}, description = "Enable debug output (raw protocol messages)")
+    private boolean debug;
+
     @Command(name = "list", description = "List all presets", mixinStandardHelpOptions = true)
     static class ListCommand implements Callable<Integer> {
 
-        @Option(names = {"-d", "--debug"}, description = "Enable debug output (raw protocol messages)")
-        private boolean debug;
+        @CommandLine.ParentCommand
+        private App parent;
 
         @Option(names = {"--host"}, required = true, description = "Mixer hostname or IP address")
         private String host;
@@ -38,7 +41,7 @@ public class App implements Callable<Integer> {
 
         @Override
         public Integer call() {
-            if (debug) {
+            if (parent.debug) {
                 Configurator.setLevel("uk.co.hpnet.tascam", Level.DEBUG);
             }
 
