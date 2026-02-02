@@ -6,6 +6,7 @@ A command-line tool to list and recall presets on Tascam MX-8A and DCP series mi
 
 - **List presets** — Display all saved presets with current preset indicator
 - **Recall by name** — Load a preset by its name
+- **Config file** — Store host, port, and password in `~/.tascam-preset.conf`
 - **Debug mode** — View raw protocol messages
 
 ## Building
@@ -58,7 +59,19 @@ tascam-preset list --host 192.168.1.100 -p 54726
 tascam-preset --debug list --host 192.168.1.100
 ```
 
-If the mixer has a password configured, the tool will prompt for it on stdin.
+If the mixer has a password configured, the tool will prompt for it on stdin (unless set in config file).
+
+## Configuration
+
+Create `~/.tascam-preset.conf` to set defaults:
+
+```properties
+host=192.168.1.100
+port=54726
+password=secret
+```
+
+All fields are optional. Command-line arguments override config file values.
 
 ### Output Format
 

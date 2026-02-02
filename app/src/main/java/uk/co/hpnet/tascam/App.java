@@ -9,6 +9,7 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 import uk.co.hpnet.tascam.client.TascamClient;
 import uk.co.hpnet.tascam.client.TascamTcpClient;
+import uk.co.hpnet.tascam.config.Config;
 import uk.co.hpnet.tascam.model.Preset;
 
 import java.io.Console;
@@ -24,8 +25,11 @@ import java.util.concurrent.Callable;
 @Command(name = "tascam-preset", 
          mixinStandardHelpOptions = true,
          version = "1.0",
-         description = "List and recall presets on Tascam MX-DCP series mixers")
+         description = "List and recall presets on Tascam MX-DCP series mixers",
+         subcommands = {App.ListCommand.class, App.RecallCommand.class})
 public class App implements Callable<Integer> {
+
+    private static final int DEFAULT_PORT = 54726;
 
     @Option(names = {"-d", "--debug"}, description = "Enable debug output (raw protocol messages)")
     private boolean debug;
@@ -36,18 +40,27 @@ public class App implements Callable<Integer> {
         @CommandLine.ParentCommand
         private App parent;
 
-        @Option(names = {"--host"}, required = true, description = "Mixer hostname or IP address")
+        @Option(names = {"--host"}, description = "Mixer hostname or IP address")
         private String host;
 
-        @Option(names = {"-p", "--port"}, defaultValue = "54726", description = "Mixer port (default: 54726)")
-        private int port;
+        @Option(names = {"-p", "--port"}, description = "Mixer port (default: 54726)")
+        private Integer port;
 
         @Override
         public Integer call() {
-            String password = promptForPassword();
+            Config config = Config.load();
+            
+            String effectiveHost = host != null ? host : config.host().orElse(null);
+            if (effectiveHost == null) {
+                System.err.println("Error: --host is required (or set host in ~/.tascam-preset.conf)");
+                return 1;
+            }
+            
+            int effectivePort = port != null ? port : config.port().orElse(DEFAULT_PORT);
+            String password = config.password().orElseGet(App::promptForPassword);
             
             try (TascamClient client = new TascamTcpClient(0)) {
-                client.connect(host, port, password);
+                client.connect(effectiveHost, effectivePort, password);
                 
                 List<Preset> presets = client.listPresets();
                 Optional<Preset> current = client.getCurrentPreset();
@@ -87,11 +100,11 @@ public class App implements Callable<Integer> {
         @CommandLine.ParentCommand
         private App parent;
 
-        @Option(names = {"--host"}, required = true, description = "Mixer hostname or IP address")
+        @Option(names = {"--host"}, description = "Mixer hostname or IP address")
         private String host;
 
-        @Option(names = {"-p", "--port"}, defaultValue = "54726", description = "Mixer port (default: 54726)")
-        private int port;
+        @Option(names = {"-p", "--port"}, description = "Mixer port (default: 54726)")
+        private Integer port;
 
         @Option(names = {"-w", "--wait"}, defaultValue = "5", 
                 description = "Seconds to wait before verification (0 to skip verification, default: 5)")
@@ -102,12 +115,21 @@ public class App implements Callable<Integer> {
 
         @Override
         public Integer call() {
-            String password = promptForPassword();
+            Config config = Config.load();
+            
+            String effectiveHost = host != null ? host : config.host().orElse(null);
+            if (effectiveHost == null) {
+                System.err.println("Error: --host is required (or set host in ~/.tascam-preset.conf)");
+                return 1;
+            }
+            
+            int effectivePort = port != null ? port : config.port().orElse(DEFAULT_PORT);
+            String password = config.password().orElseGet(App::promptForPassword);
             
             long waitMs = (long) (waitSeconds * 1000);
             
             try (TascamClient client = new TascamTcpClient(waitMs)) {
-                client.connect(host, port, password);
+                client.connect(effectiveHost, effectivePort, password);
                 
                 // Find preset by name
                 List<Preset> presets = client.listPresets();
@@ -139,41 +161,41 @@ public class App implements Callable<Integer> {
             char[] passwordChars = console.readPassword("Password (press Enter if none): ");
             return passwordChars == null ? "" : new String(passwordChars);
         } else {
-            // Fallback for environments without console (e.g., IDE)
+            // Fallback for environments without console (e.g., IDE, tests)
             System.out.print("Password (press Enter if none): ");
             Scanner scanner = new Scanner(System.in);
-            return scanner.nextLine();
+            if (scanner.hasNextLine()) {
+                return scanner.nextLine();
+            }
+            return "";
         }
     }
 
     @Override
     public Integer call() {
-        // Default: show help
+        // No subcommand specified, print help
         CommandLine.usage(this, System.out);
         return 0;
     }
 
-    /**
-     * Executes the CLI with the given arguments and returns the exit code.
-     * Use this for testing; main() calls this then System.exit().
-     */
-    static int run(String[] args) {
-        // Set log level BEFORE Log4j initializes (reads ${sys:tascam.logLevel} from log4j2.xml)
-        if (Arrays.asList(args).contains("-d") || Arrays.asList(args).contains("--debug")) {
-            System.setProperty("tascam.logLevel", "DEBUG");
-        } else {
-            System.setProperty("tascam.logLevel", "WARN");
-        }
-        // Force Log4j2 to re-read configuration with updated system property
-        Configurator.reconfigure();
-        
-        return new CommandLine(new App())
-                .addSubcommand("list", new ListCommand())
-                .addSubcommand("recall", new RecallCommand())
-                .execute(args);
+    public static void main(String[] args) {
+        int exitCode = run(args);
+        System.exit(exitCode);
     }
 
-    public static void main(String[] args) {
-        System.exit(run(args));
+    /**
+     * Run the CLI with the given arguments. Used by tests.
+     */
+    public static int run(String[] args) {
+        App app = new App();
+        CommandLine cmd = new CommandLine(app);
+        
+        // Pre-parse to check for debug flag
+        if (Arrays.asList(args).contains("--debug") || Arrays.asList(args).contains("-d")) {
+            System.setProperty("tascam.logLevel", "DEBUG");
+            Configurator.reconfigure();
+        }
+        
+        return cmd.execute(args);
     }
 }
