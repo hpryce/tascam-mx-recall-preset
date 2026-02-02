@@ -53,12 +53,14 @@ public class App implements Callable<Integer> {
     ConnectionSettings resolveConnectionSettings() {
         Config config = Config.load();
         
-        String effectiveHost = host != null ? host : config.host().orElse(null);
-        if (effectiveHost == null) {
-            throw new IllegalStateException("--host is required (or set host in ~/.tascam-preset.conf)");
-        }
+        String effectiveHost = Optional.ofNullable(host)
+            .or(config::host)
+            .orElseThrow(() -> new IllegalStateException("--host is required (or set host in ~/.tascam-preset.conf)"));
         
-        int effectivePort = port != null ? port : config.port().orElse(DEFAULT_PORT);
+        int effectivePort = Optional.ofNullable(port)
+            .or(config::port)
+            .orElse(DEFAULT_PORT);
+        
         String effectivePassword = config.password().orElseGet(App::promptForPassword);
         
         return new ConnectionSettings(effectiveHost, effectivePort, effectivePassword);
