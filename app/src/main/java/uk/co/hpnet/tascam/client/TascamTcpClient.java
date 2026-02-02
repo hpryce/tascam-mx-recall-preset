@@ -20,7 +20,6 @@ public class TascamTcpClient implements TascamClient {
     private static final Logger logger = LogManager.getLogger(TascamTcpClient.class);
 
     private static final int DEFAULT_TIMEOUT_MS = 10000;
-    private static final long DEFAULT_RECALL_WAIT_MS = 5000;
     private static final AtomicInteger GLOBAL_CID_COUNTER = new AtomicInteger(1000);
     
     private static final Pattern PRESET_NAME_PATTERN = Pattern.compile("PRESET/(\\d+)/NAME:\"([^\"]+)\"");
@@ -35,13 +34,6 @@ public class TascamTcpClient implements TascamClient {
     private Socket socket;
     private BufferedReader reader;
     private PrintWriter writer;
-
-    /**
-     * Creates a client using the global CID counter and default wait times.
-     */
-    public TascamTcpClient() {
-        this(DEFAULT_RECALL_WAIT_MS);
-    }
 
     /**
      * Creates a client with custom recall wait time.
@@ -169,36 +161,47 @@ public class TascamTcpClient implements TascamClient {
         // Wait for NOTIFY PRESET/CUR:<n> confirming the preset change is complete
         // If already on this preset, mixer won't send NOTIFY - skip waiting for it
         if (!alreadyOnPreset) {
-            // The mixer sends multiple NOTIFYs (mutes, levels, etc.) before the preset NOTIFY
-            String expectedNotify = "NOTIFY PRESET/CUR:" + presetNumber;
-            String notify;
-            while ((notify = readLine()) != null) {
-                logger.debug("Received: {}", notify);
-                if (notify.startsWith(expectedNotify)) {
-                    logger.debug("Preset change confirmed: {}", notify);
-                    break;
-                }
-                // Continue reading other NOTIFYs until we get the preset one
-            }
+            waitForPresetNotify(presetNumber);
         }
         
         // Wait for mixer to stabilize after preset load and verify
         if (recallWaitMs > 0) {
             sleeper.sleep(recallWaitMs);
-            
-            // Verify the preset was actually loaded
-            Optional<Preset> current = getCurrentPreset();
-            if (current.isEmpty()) {
-                throw new PresetRecallException("Failed to verify preset after recall");
-            }
-            if (current.get().number() != presetNumber) {
-                throw new PresetRecallException("Preset recall verification failed: expected " + presetNumber 
-                    + " but got " + current.get().number());
-            }
-            
+            verifyPresetLoaded(presetNumber);
             logger.debug("Preset {} recalled and verified successfully", presetNumber);
         } else {
             logger.debug("Preset {} recall sent (verification skipped)", presetNumber);
+        }
+    }
+
+    /**
+     * Waits for the NOTIFY PRESET/CUR message confirming preset change.
+     * The mixer sends multiple NOTIFYs (mutes, levels, etc.) before the preset NOTIFY.
+     */
+    private void waitForPresetNotify(int presetNumber) throws IOException {
+        String expectedNotify = "NOTIFY PRESET/CUR:" + presetNumber;
+        String notify;
+        while ((notify = readLine()) != null) {
+            logger.debug("Received: {}", notify);
+            if (notify.startsWith(expectedNotify)) {
+                logger.debug("Preset change confirmed: {}", notify);
+                break;
+            }
+            // Continue reading other NOTIFYs until we get the preset one
+        }
+    }
+
+    /**
+     * Verifies that the expected preset is now active.
+     */
+    private void verifyPresetLoaded(int expectedPresetNumber) throws IOException {
+        Optional<Preset> current = getCurrentPreset();
+        if (current.isEmpty()) {
+            throw new PresetRecallException("Failed to verify preset after recall");
+        }
+        if (current.get().number() != expectedPresetNumber) {
+            throw new PresetRecallException("Preset recall verification failed: expected " + expectedPresetNumber 
+                + " but got " + current.get().number());
         }
     }
 

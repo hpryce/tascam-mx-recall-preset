@@ -46,7 +46,7 @@ public class App implements Callable<Integer> {
         public Integer call() {
             String password = promptForPassword();
             
-            try (TascamClient client = new TascamTcpClient()) {
+            try (TascamClient client = new TascamTcpClient(0)) {
                 client.connect(host, port, password);
                 
                 List<Preset> presets = client.listPresets();

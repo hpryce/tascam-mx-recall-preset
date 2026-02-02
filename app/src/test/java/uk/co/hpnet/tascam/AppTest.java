@@ -114,8 +114,8 @@ class AppTest {
         );
 
         try (FakeTascamServer server = new FakeTascamServer(presets, 1)) {
-            // Use lowercase name - recalling current preset, skip verification for speed
-            CapturedOutput output = runWithStdin("\n", "recall", "--host", "localhost", "-p", String.valueOf(server.getPort()), "-w", "0", "default mix");
+            // Use lowercase name - recalling current preset with minimal wait
+            CapturedOutput output = runWithStdin("\n", "recall", "--host", "localhost", "-p", String.valueOf(server.getPort()), "-w", "0.01", "default mix");
             
             assertTrue(output.stdout.contains("Recalled preset 1"), "Case-insensitive match should work");
         }
