@@ -148,7 +148,13 @@ public class TascamTcpClient implements TascamClient {
             throw new IOException("Failed to recall preset: " + response);
         }
         
-        // Device may send async NOTIFY, but we don't need to wait for it
+        // Wait for NOTIFY confirming the preset change is complete
+        // The mixer sends this after it finishes loading the preset
+        String notify = readLine();
+        if (notify != null && notify.startsWith("NOTIFY")) {
+            logger.debug("Preset change confirmed: {}", notify);
+        }
+        
         logger.debug("Preset {} recalled successfully", presetNumber);
     }
 

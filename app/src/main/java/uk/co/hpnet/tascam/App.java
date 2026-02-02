@@ -1,5 +1,7 @@
 package uk.co.hpnet.tascam;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.config.Configurator;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -80,6 +82,8 @@ public class App implements Callable<Integer> {
     @Command(name = "recall", description = "Recall (load) a preset by name", mixinStandardHelpOptions = true)
     static class RecallCommand implements Callable<Integer> {
 
+        private static final Logger logger = LogManager.getLogger(RecallCommand.class);
+
         @CommandLine.ParentCommand
         private App parent;
 
@@ -106,6 +110,7 @@ public class App implements Callable<Integer> {
                     .findFirst();
                 
                 if (match.isEmpty()) {
+                    logger.debug("Available presets: {}", presets);
                     System.err.println("Error: No preset found with name \"" + presetName + "\"");
                     return 1;
                 }

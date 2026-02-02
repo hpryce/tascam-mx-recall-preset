@@ -43,7 +43,7 @@ The native image is a standalone binary with no JVM dependency — ideal for Ras
 tascam-preset list --host 192.168.1.100
 
 # Recall a preset by name
-tascam-preset recall --host 192.168.1.100 "Sunday Service"
+tascam-preset recall --host 192.168.1.100 "My Preset"
 
 # With custom port
 tascam-preset list --host 192.168.1.100 -p 54726
@@ -59,9 +59,9 @@ If the mixer has a password configured, the tool will prompt for it on stdin.
 The `list` command shows all presets, with the current preset marked with `*`:
 
 ```
-* 1: "Sunday Service"
-  2: "Weekday Mass"
-  3: "Choir Practice" [locked]
+* 1: "Default Mix"
+  2: "Quiet Mode"
+  3: "Backup Config" [locked]
 ```
 
 ## Documentation

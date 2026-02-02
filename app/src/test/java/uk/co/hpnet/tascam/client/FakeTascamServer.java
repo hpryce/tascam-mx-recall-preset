@@ -168,14 +168,15 @@ public class FakeTascamServer implements AutoCloseable {
             TestPreset preset = presets.get(presetNumber);
             
             if (preset == null) {
-                return "NG SET PRESET/LOAD:ERR5 CID:" + cid + " ";
+                return "OK SET PRESET/LOAD:ERR5 CID:" + cid + " ";
             }
             
             currentPresetNumber.set(presetNumber);
-            return "OK SET CID:" + cid + " ";
+            // Send OK response, then NOTIFY will be read by client
+            return "OK SET CID:" + cid + " \r\nNOTIFY PRESET/CUR:" + presetNumber + " PRESET/NAME:\"" + preset.name() + "\"";
         }
         
-        return "NG " + params;
+        return "OK SET " + params + ":ERR1 CID:" + cid + " ";
     }
 
     @Override
