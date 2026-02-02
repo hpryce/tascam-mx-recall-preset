@@ -29,22 +29,28 @@ public class TascamTcpClient implements TascamClient {
     private static final Pattern CURRENT_NAME_PATTERN = Pattern.compile("PRESET/NAME:\"([^\"]+)\"");
 
     private final AtomicInteger cidCounter;
+    private final long recallWaitMs;
+    private final Sleeper sleeper;
     private Socket socket;
     private BufferedReader reader;
     private PrintWriter writer;
 
     /**
-     * Creates a client using the global CID counter.
+     * Creates a client with custom recall wait time.
+     *
+     * @param recallWaitMs milliseconds to wait after recall before verification (0 to skip verification)
      */
-    public TascamTcpClient() {
-        this(GLOBAL_CID_COUNTER);
+    public TascamTcpClient(long recallWaitMs) {
+        this(GLOBAL_CID_COUNTER, recallWaitMs, Sleeper.defaultSleeper());
     }
 
     /**
-     * Creates a client with a custom CID counter (for testing).
+     * Creates a client with custom dependencies (for testing).
      */
-    TascamTcpClient(AtomicInteger cidCounter) {
+    TascamTcpClient(AtomicInteger cidCounter, long recallWaitMs, Sleeper sleeper) {
         this.cidCounter = cidCounter;
+        this.recallWaitMs = recallWaitMs;
+        this.sleeper = sleeper;
     }
 
     @Override
@@ -140,6 +146,10 @@ public class TascamTcpClient implements TascamClient {
             throw new IllegalArgumentException("Preset number must be between 1 and 50");
         }
         
+        // Check if we're already on this preset
+        Optional<Preset> currentBefore = getCurrentPreset();
+        boolean alreadyOnPreset = currentBefore.isPresent() && currentBefore.get().number() == presetNumber;
+        
         String cid = generateCid();
         String response = sendCommand("SET PRESET/LOAD:" + presetNumber + " CID:" + cid);
         
@@ -148,14 +158,51 @@ public class TascamTcpClient implements TascamClient {
             throw new IOException("Failed to recall preset: " + response);
         }
         
-        // Wait for NOTIFY confirming the preset change is complete
-        // The mixer sends this after it finishes loading the preset
-        String notify = readLine();
-        if (notify != null && notify.startsWith("NOTIFY")) {
-            logger.debug("Preset change confirmed: {}", notify);
+        // Wait for NOTIFY PRESET/CUR:<n> confirming the preset change is complete
+        // If already on this preset, mixer won't send NOTIFY - skip waiting for it
+        if (!alreadyOnPreset) {
+            waitForPresetNotify(presetNumber);
         }
         
-        logger.debug("Preset {} recalled successfully", presetNumber);
+        // Wait for mixer to stabilize after preset load and verify
+        if (recallWaitMs > 0) {
+            sleeper.sleep(recallWaitMs);
+            verifyPresetLoaded(presetNumber);
+            logger.debug("Preset {} recalled and verified successfully", presetNumber);
+        } else {
+            logger.debug("Preset {} recall sent (verification skipped)", presetNumber);
+        }
+    }
+
+    /**
+     * Waits for the NOTIFY PRESET/CUR message confirming preset change.
+     * The mixer sends multiple NOTIFYs (mutes, levels, etc.) before the preset NOTIFY.
+     */
+    private void waitForPresetNotify(int presetNumber) throws IOException {
+        String expectedNotify = "NOTIFY PRESET/CUR:" + presetNumber;
+        String notify;
+        while ((notify = readLine()) != null) {
+            logger.debug("Received: {}", notify);
+            if (notify.startsWith(expectedNotify)) {
+                logger.debug("Preset change confirmed: {}", notify);
+                break;
+            }
+            // Continue reading other NOTIFYs until we get the preset one
+        }
+    }
+
+    /**
+     * Verifies that the expected preset is now active.
+     */
+    private void verifyPresetLoaded(int expectedPresetNumber) throws IOException {
+        Optional<Preset> current = getCurrentPreset();
+        if (current.isEmpty()) {
+            throw new PresetRecallException("Failed to verify preset after recall");
+        }
+        if (current.get().number() != expectedPresetNumber) {
+            throw new PresetRecallException("Preset recall verification failed: expected " + expectedPresetNumber 
+                + " but got " + current.get().number());
+        }
     }
 
     private void sendRaw(String data) {

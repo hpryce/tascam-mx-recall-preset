@@ -45,6 +45,12 @@ tascam-preset list --host 192.168.1.100
 # Recall a preset by name
 tascam-preset recall --host 192.168.1.100 "My Preset"
 
+# Recall with custom verification wait (seconds, default 5)
+tascam-preset recall --host 192.168.1.100 -w 2 "My Preset"
+
+# Recall without verification (faster, but no guarantee preset loaded)
+tascam-preset recall --host 192.168.1.100 -w 0 "My Preset"
+
 # With custom port
 tascam-preset list --host 192.168.1.100 -p 54726
 
