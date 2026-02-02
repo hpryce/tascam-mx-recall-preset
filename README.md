@@ -7,22 +7,9 @@ A command-line tool to list and recall presets on Tascam MX-8A and DCP series mi
 - **List presets** — Display all saved presets with current preset indicator
 - **Recall by name** — Load a preset by its name
 
-## Installation
+## Building
 
-### Pre-built binaries
-
-Download the latest native binary from [Releases](https://github.com/hpryce/tascam-mx-recall-preset/releases):
-
-- `tascam-preset-linux-x86_64` — For x86_64 Linux
-- `tascam-preset-linux-aarch64` — For Raspberry Pi 4 and other ARM64 Linux
-
-```bash
-# Download and make executable
-chmod +x tascam-preset-linux-aarch64
-./tascam-preset-linux-aarch64 list --host 192.168.1.100
-```
-
-### Build from source
+### With Java (JVM)
 
 Requires Java 21 or later.
 
@@ -31,7 +18,7 @@ Requires Java 21 or later.
 ./gradlew run --args="list --host 192.168.1.100"
 ```
 
-### Build native image locally
+### Native image (GraalVM)
 
 Requires GraalVM 21 or later with `native-image` installed.
 
@@ -39,6 +26,8 @@ Requires GraalVM 21 or later with `native-image` installed.
 ./gradlew nativeCompile
 ./app/build/native/nativeCompile/tascam-preset list --host 192.168.1.100
 ```
+
+The native image is a standalone binary with no JVM dependency — ideal for Raspberry Pi or embedded systems.
 
 ## Usage
 
