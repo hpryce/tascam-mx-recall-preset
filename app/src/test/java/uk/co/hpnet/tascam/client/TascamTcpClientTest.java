@@ -84,6 +84,45 @@ class TascamTcpClientTest {
     }
 
     @Test
+    void recallPresetChangesCurrentPreset() throws IOException {
+        Map<Integer, FakeTascamServer.TestPreset> presets = Map.of(
+            1, new FakeTascamServer.TestPreset("Default Mix", false),
+            2, new FakeTascamServer.TestPreset("Quiet Mode", false)
+        );
+
+        try (FakeTascamServer server = new FakeTascamServer(presets, 2);
+             TascamClient client = new TascamTcpClient(new AtomicInteger(1000))) {
+            
+            client.connect("localhost", server.getPort(), "");
+            
+            // Initially on preset 2
+            assertEquals(2, server.getCurrentPresetNumber());
+            
+            // Recall preset 1
+            client.recallPreset(1);
+            
+            // Server should now be on preset 1
+            assertEquals(1, server.getCurrentPresetNumber());
+        }
+    }
+
+    @Test
+    void recallPresetWithInvalidNumberThrows() throws IOException {
+        Map<Integer, FakeTascamServer.TestPreset> presets = Map.of(
+            1, new FakeTascamServer.TestPreset("Test", false)
+        );
+
+        try (FakeTascamServer server = new FakeTascamServer(presets, 1);
+             TascamClient client = new TascamTcpClient(new AtomicInteger(1000))) {
+            
+            client.connect("localhost", server.getPort(), "");
+            
+            assertThrows(IllegalArgumentException.class, () -> client.recallPreset(0));
+            assertThrows(IllegalArgumentException.class, () -> client.recallPreset(51));
+        }
+    }
+
+    @Test
     void loginWithPassword() throws IOException {
         Map<Integer, FakeTascamServer.TestPreset> presets = Map.of(
             1, new FakeTascamServer.TestPreset("Test Preset", false)

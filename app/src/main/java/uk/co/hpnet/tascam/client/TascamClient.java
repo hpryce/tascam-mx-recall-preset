@@ -42,4 +42,12 @@ public interface TascamClient extends AutoCloseable {
      * @throws IOException if communication fails
      */
     Optional<Preset> getCurrentPreset() throws IOException;
+
+    /**
+     * Recall (load) a preset by number.
+     *
+     * @param presetNumber the preset number to load (1-50)
+     * @throws IOException if communication fails or preset doesn't exist
+     */
+    void recallPreset(int presetNumber) throws IOException;
 }

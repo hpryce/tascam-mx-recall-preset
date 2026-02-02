@@ -91,6 +91,49 @@ class AppTest {
         }
     }
 
+    @Test
+    void recallCommandByName() throws IOException {
+        Map<Integer, FakeTascamServer.TestPreset> presets = Map.of(
+            1, new FakeTascamServer.TestPreset("Default Mix", false),
+            2, new FakeTascamServer.TestPreset("Quiet Mode", false)
+        );
+
+        try (FakeTascamServer server = new FakeTascamServer(presets, 1)) {
+            CapturedOutput output = runWithStdin("\n", "recall", "--host", "localhost", "-p", String.valueOf(server.getPort()), "Quiet Mode");
+            
+            assertTrue(output.stdout.contains("Recalled preset 2"), "Should show recalled preset number");
+            assertTrue(output.stdout.contains("Quiet Mode"), "Should show recalled preset name");
+            assertEquals(2, server.getCurrentPresetNumber(), "Server should be on preset 2 after recall");
+        }
+    }
+
+    @Test
+    void recallCommandCaseInsensitive() throws IOException {
+        Map<Integer, FakeTascamServer.TestPreset> presets = Map.of(
+            1, new FakeTascamServer.TestPreset("Default Mix", false)
+        );
+
+        try (FakeTascamServer server = new FakeTascamServer(presets, 1)) {
+            // Use lowercase name
+            CapturedOutput output = runWithStdin("\n", "recall", "--host", "localhost", "-p", String.valueOf(server.getPort()), "default mix");
+            
+            assertTrue(output.stdout.contains("Recalled preset 1"), "Case-insensitive match should work");
+        }
+    }
+
+    @Test
+    void recallCommandNotFound() throws IOException {
+        Map<Integer, FakeTascamServer.TestPreset> presets = Map.of(
+            1, new FakeTascamServer.TestPreset("Default Mix", false)
+        );
+
+        try (FakeTascamServer server = new FakeTascamServer(presets, 1)) {
+            CapturedOutput output = runWithStdin("\n", "recall", "--host", "localhost", "-p", String.valueOf(server.getPort()), "Nonexistent");
+            
+            assertTrue(output.stderr.contains("No preset found"), "Should show error for nonexistent preset");
+        }
+    }
+
     record CapturedOutput(String stdout, String stderr) {}
 
     /**
