@@ -23,7 +23,7 @@ Requires Java 21 or later.
 Requires GraalVM 21 or later with `native-image` installed.
 
 ```bash
-./gradlew nativeCompile
+./gradlew nativeCompile --no-configuration-cache
 ./app/build/native/nativeCompile/tascam-preset list --host 192.168.1.100
 ```
 
