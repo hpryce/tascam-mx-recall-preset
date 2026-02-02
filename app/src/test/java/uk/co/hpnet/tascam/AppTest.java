@@ -61,7 +61,7 @@ class AppTest {
         );
 
         try (FakeTascamServer server = new FakeTascamServer(presets, 1)) {
-            CapturedOutput output = runWithStdin("\n", "--debug", "list", "--host", "localhost", "-p", String.valueOf(server.getPort()));
+            CapturedOutput output = runWithStdin("\n", "list", "--debug", "--host", "localhost", "-p", String.valueOf(server.getPort()));
             
             // Verify stdout still has normal output
             assertTrue(output.stdout.contains("1: \"Test Preset\""), "Should still list presets");
