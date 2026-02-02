@@ -47,20 +47,21 @@ public class App implements Callable<Integer> {
 
     /**
      * Resolves connection settings from CLI args and config file.
-     * Returns empty if host is not set anywhere.
+     * 
+     * @throws IllegalStateException if host is not set anywhere
      */
-    Optional<ConnectionSettings> resolveConnectionSettings() {
+    ConnectionSettings resolveConnectionSettings() {
         Config config = Config.load();
         
         String effectiveHost = host != null ? host : config.host().orElse(null);
         if (effectiveHost == null) {
-            return Optional.empty();
+            throw new IllegalStateException("--host is required (or set host in ~/.tascam-preset.conf)");
         }
         
         int effectivePort = port != null ? port : config.port().orElse(DEFAULT_PORT);
         String effectivePassword = config.password().orElseGet(App::promptForPassword);
         
-        return Optional.of(new ConnectionSettings(effectiveHost, effectivePort, effectivePassword));
+        return new ConnectionSettings(effectiveHost, effectivePort, effectivePassword);
     }
 
     @Command(name = "list", description = "List all presets", mixinStandardHelpOptions = true)
@@ -71,40 +72,36 @@ public class App implements Callable<Integer> {
 
         @Override
         public Integer call() {
-            Optional<ConnectionSettings> settings = parent.resolveConnectionSettings();
-            if (settings.isEmpty()) {
-                System.err.println("Error: --host is required (or set host in ~/.tascam-preset.conf)");
-                return 1;
-            }
-            
-            ConnectionSettings conn = settings.get();
-            
-            try (TascamClient client = new TascamTcpClient(0)) {
-                client.connect(conn.host(), conn.port(), conn.password());
+            try {
+                ConnectionSettings conn = parent.resolveConnectionSettings();
                 
-                List<Preset> presets = client.listPresets();
-                Optional<Preset> current = client.getCurrentPreset();
-                
-                if (presets.isEmpty()) {
-                    System.out.println("No presets found.");
+                try (TascamClient client = new TascamTcpClient(0)) {
+                    client.connect(conn.host(), conn.port(), conn.password());
+                    
+                    List<Preset> presets = client.listPresets();
+                    Optional<Preset> current = client.getCurrentPreset();
+                    
+                    if (presets.isEmpty()) {
+                        System.out.println("No presets found.");
+                        return 0;
+                    }
+                    
+                    int currentNumber = current.map(Preset::number).orElse(-1);
+                    
+                    for (Preset preset : presets) {
+                        String marker = (preset.number() == currentNumber) ? "*" : " ";
+                        String lockIndicator = preset.locked()
+                            .map(locked -> locked ? " [locked]" : "")
+                            .orElse("");
+                        System.out.printf("%s%2d: \"%s\"%s%n", 
+                            marker, 
+                            preset.number(), 
+                            preset.name(),
+                            lockIndicator);
+                    }
+                    
                     return 0;
                 }
-                
-                int currentNumber = current.map(Preset::number).orElse(-1);
-                
-                for (Preset preset : presets) {
-                    String marker = (preset.number() == currentNumber) ? "*" : " ";
-                    String lockIndicator = preset.locked()
-                        .map(locked -> locked ? " [locked]" : "")
-                        .orElse("");
-                    System.out.printf("%s%2d: \"%s\"%s%n", 
-                        marker, 
-                        preset.number(), 
-                        preset.name(),
-                        lockIndicator);
-                }
-                
-                return 0;
             } catch (Exception e) {
                 System.err.println("Error: " + e.getMessage());
                 return 1;
@@ -129,35 +126,31 @@ public class App implements Callable<Integer> {
 
         @Override
         public Integer call() {
-            Optional<ConnectionSettings> settings = parent.resolveConnectionSettings();
-            if (settings.isEmpty()) {
-                System.err.println("Error: --host is required (or set host in ~/.tascam-preset.conf)");
-                return 1;
-            }
-            
-            ConnectionSettings conn = settings.get();
-            long waitMs = (long) (waitSeconds * 1000);
-            
-            try (TascamClient client = new TascamTcpClient(waitMs)) {
-                client.connect(conn.host(), conn.port(), conn.password());
+            try {
+                ConnectionSettings conn = parent.resolveConnectionSettings();
+                long waitMs = (long) (waitSeconds * 1000);
                 
-                // Find preset by name
-                List<Preset> presets = client.listPresets();
-                Optional<Preset> match = presets.stream()
-                    .filter(p -> p.name().equalsIgnoreCase(presetName))
-                    .findFirst();
-                
-                if (match.isEmpty()) {
-                    logger.debug("Available presets: {}", presets);
-                    System.err.println("Error: No preset found with name \"" + presetName + "\"");
-                    return 1;
+                try (TascamClient client = new TascamTcpClient(waitMs)) {
+                    client.connect(conn.host(), conn.port(), conn.password());
+                    
+                    // Find preset by name
+                    List<Preset> presets = client.listPresets();
+                    Optional<Preset> match = presets.stream()
+                        .filter(p -> p.name().equalsIgnoreCase(presetName))
+                        .findFirst();
+                    
+                    if (match.isEmpty()) {
+                        logger.debug("Available presets: {}", presets);
+                        System.err.println("Error: No preset found with name \"" + presetName + "\"");
+                        return 1;
+                    }
+                    
+                    Preset preset = match.get();
+                    client.recallPreset(preset.number());
+                    System.out.println("Recalled preset " + preset.number() + ": \"" + preset.name() + "\"");
+                    
+                    return 0;
                 }
-                
-                Preset preset = match.get();
-                client.recallPreset(preset.number());
-                System.out.println("Recalled preset " + preset.number() + ": \"" + preset.name() + "\"");
-                
-                return 0;
             } catch (Exception e) {
                 System.err.println("Error: " + e.getMessage());
                 return 1;
