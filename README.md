@@ -9,12 +9,18 @@ A command-line tool to list and recall presets on Tascam MX-8A and DCP series mi
 
 ## Building
 
-### With Java (JVM)
+### Executable JAR
 
 Requires Java 21 or later.
 
 ```bash
-./gradlew build
+./gradlew shadowJar
+java -jar app/build/libs/tascam-preset.jar list --host 192.168.1.100
+```
+
+### Run directly with Gradle
+
+```bash
 ./gradlew run --args="list --host 192.168.1.100"
 ```
 
