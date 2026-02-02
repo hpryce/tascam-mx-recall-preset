@@ -20,6 +20,7 @@ public class TascamTcpClient implements TascamClient {
     private static final Logger logger = LogManager.getLogger(TascamTcpClient.class);
 
     private static final int DEFAULT_TIMEOUT_MS = 10000;
+    private static final long DEFAULT_RECALL_WAIT_MS = 5000;
     private static final AtomicInteger GLOBAL_CID_COUNTER = new AtomicInteger(1000);
     
     private static final Pattern PRESET_NAME_PATTERN = Pattern.compile("PRESET/(\\d+)/NAME:\"([^\"]+)\"");
@@ -29,22 +30,31 @@ public class TascamTcpClient implements TascamClient {
     private static final Pattern CURRENT_NAME_PATTERN = Pattern.compile("PRESET/NAME:\"([^\"]+)\"");
 
     private final AtomicInteger cidCounter;
+    private final long recallWaitMs;
     private Socket socket;
     private BufferedReader reader;
     private PrintWriter writer;
 
     /**
-     * Creates a client using the global CID counter.
+     * Creates a client using the global CID counter and default wait times.
      */
     public TascamTcpClient() {
-        this(GLOBAL_CID_COUNTER);
+        this(GLOBAL_CID_COUNTER, DEFAULT_RECALL_WAIT_MS);
     }
 
     /**
      * Creates a client with a custom CID counter (for testing).
      */
     TascamTcpClient(AtomicInteger cidCounter) {
+        this(cidCounter, DEFAULT_RECALL_WAIT_MS);
+    }
+
+    /**
+     * Creates a client with custom CID counter and recall wait time (for testing).
+     */
+    TascamTcpClient(AtomicInteger cidCounter, long recallWaitMs) {
         this.cidCounter = cidCounter;
+        this.recallWaitMs = recallWaitMs;
     }
 
     @Override
@@ -155,7 +165,27 @@ public class TascamTcpClient implements TascamClient {
             logger.debug("Preset change confirmed: {}", notify);
         }
         
-        logger.debug("Preset {} recalled successfully", presetNumber);
+        // Wait for mixer to stabilize after preset load
+        if (recallWaitMs > 0) {
+            try {
+                Thread.sleep(recallWaitMs);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException("Interrupted while waiting for preset load", e);
+            }
+        }
+        
+        // Verify the preset was actually loaded
+        Optional<Preset> current = getCurrentPreset();
+        if (current.isEmpty()) {
+            throw new IOException("Failed to verify preset after recall");
+        }
+        if (current.get().number() != presetNumber) {
+            throw new IOException("Preset recall verification failed: expected " + presetNumber 
+                + " but got " + current.get().number());
+        }
+        
+        logger.debug("Preset {} recalled and verified successfully", presetNumber);
     }
 
     private void sendRaw(String data) {

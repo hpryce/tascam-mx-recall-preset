@@ -13,6 +13,13 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class TascamTcpClientTest {
 
+    /**
+     * Creates a test client with no recall wait time.
+     */
+    private TascamTcpClient createTestClient() {
+        return new TascamTcpClient(new AtomicInteger(1000), 0);
+    }
+
     @Test
     void listPresetsWithSinglePreset() throws IOException {
         Map<Integer, FakeTascamServer.TestPreset> presets = Map.of(
@@ -20,7 +27,7 @@ class TascamTcpClientTest {
         );
 
         try (FakeTascamServer server = new FakeTascamServer(presets, 1);
-             TascamClient client = new TascamTcpClient(new AtomicInteger(1000))) {
+             TascamClient client = createTestClient()) {
             
             client.connect("localhost", server.getPort(), "");
             List<Preset> result = client.listPresets();
@@ -38,7 +45,7 @@ class TascamTcpClientTest {
         );
 
         try (FakeTascamServer server = new FakeTascamServer(presets, 2);
-             TascamClient client = new TascamTcpClient(new AtomicInteger(1000))) {
+             TascamClient client = createTestClient()) {
             
             client.connect("localhost", server.getPort(), "");
             List<Preset> result = client.listPresets();
@@ -56,7 +63,7 @@ class TascamTcpClientTest {
         Map<Integer, FakeTascamServer.TestPreset> presets = Map.of();
 
         try (FakeTascamServer server = new FakeTascamServer(presets, 0);
-             TascamClient client = new TascamTcpClient(new AtomicInteger(1000))) {
+             TascamClient client = createTestClient()) {
             
             client.connect("localhost", server.getPort(), "");
             List<Preset> result = client.listPresets();
@@ -73,7 +80,7 @@ class TascamTcpClientTest {
         );
 
         try (FakeTascamServer server = new FakeTascamServer(presets, 2);
-             TascamClient client = new TascamTcpClient(new AtomicInteger(1000))) {
+             TascamClient client = createTestClient()) {
             
             client.connect("localhost", server.getPort(), "");
             Optional<Preset> current = client.getCurrentPreset();
@@ -91,7 +98,7 @@ class TascamTcpClientTest {
         );
 
         try (FakeTascamServer server = new FakeTascamServer(presets, 2);
-             TascamClient client = new TascamTcpClient(new AtomicInteger(1000))) {
+             TascamClient client = createTestClient()) {
             
             client.connect("localhost", server.getPort(), "");
             
@@ -103,6 +110,31 @@ class TascamTcpClientTest {
             
             // Server should now be on preset 1
             assertEquals(1, server.getCurrentPresetNumber());
+            
+            // Client should also report preset 1 as current
+            Optional<Preset> current = client.getCurrentPreset();
+            assertEquals(1, current.orElseThrow().number());
+        }
+    }
+
+    @Test
+    void recallPresetVerifiesSuccess() throws IOException {
+        Map<Integer, FakeTascamServer.TestPreset> presets = Map.of(
+            1, new FakeTascamServer.TestPreset("Default Mix", false),
+            2, new FakeTascamServer.TestPreset("Quiet Mode", false)
+        );
+
+        try (FakeTascamServer server = new FakeTascamServer(presets, 1);
+             TascamClient client = createTestClient()) {
+            
+            client.connect("localhost", server.getPort(), "");
+            
+            // Recall preset 2
+            client.recallPreset(2);
+            
+            // Verification happens inside recallPreset - if we get here without exception, it passed
+            Optional<Preset> current = client.getCurrentPreset();
+            assertEquals(2, current.orElseThrow().number());
         }
     }
 
@@ -113,7 +145,7 @@ class TascamTcpClientTest {
         );
 
         try (FakeTascamServer server = new FakeTascamServer(presets, 1);
-             TascamClient client = new TascamTcpClient(new AtomicInteger(1000))) {
+             TascamClient client = createTestClient()) {
             
             client.connect("localhost", server.getPort(), "");
             
@@ -129,7 +161,7 @@ class TascamTcpClientTest {
         );
 
         try (FakeTascamServer server = new FakeTascamServer(presets, 1, "secret123");
-             TascamClient client = new TascamTcpClient(new AtomicInteger(1000))) {
+             TascamClient client = createTestClient()) {
             
             client.connect("localhost", server.getPort(), "secret123");
             List<Preset> result = client.listPresets();
@@ -143,7 +175,7 @@ class TascamTcpClientTest {
         Map<Integer, FakeTascamServer.TestPreset> presets = Map.of();
 
         try (FakeTascamServer server = new FakeTascamServer(presets, 0, "correct")) {
-            TascamClient client = new TascamTcpClient(new AtomicInteger(1000));
+            TascamClient client = createTestClient();
             
             assertThrows(IOException.class, () -> 
                 client.connect("localhost", server.getPort(), "wrong"));
@@ -152,7 +184,7 @@ class TascamTcpClientTest {
 
     @Test
     void connectionRefusedThrowsIOException() {
-        TascamClient client = new TascamTcpClient(new AtomicInteger(1000));
+        TascamClient client = createTestClient();
         
         // Port 70 (gopher) - unlikely to be listening, requires root to bind
         assertThrows(IOException.class, () -> 
