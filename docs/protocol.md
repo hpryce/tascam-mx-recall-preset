@@ -83,20 +83,30 @@ OK GET PRESET/CUR:1 PRESET/NAME:"My Preset" CID:<id> \r\n
 
 ### List Preset Slots
 
-Query individual preset slots (50 total):
+Query individual preset slots (50 total).
 
+**Example — Populated slot:**
+
+Request:
 ```
-GET PRESET/1/NAME PRESET/1/LOCK PRESET/1/CLEARED CID:<id>\r\n
+GET PRESET/1/NAME PRESET/1/LOCK PRESET/1/CLEARED CID:1001\r\n
 ```
 
 Response:
 ```
-OK GET PRESET/1/NAME:"My Preset" PRESET/1/LOCK:OFF PRESET/1/CLEARED:FALSE CID:<id> \r\n
+OK GET PRESET/1/NAME:"My Preset" PRESET/1/LOCK:OFF PRESET/1/CLEARED:FALSE CID:1001 \r\n
 ```
 
-For empty slots:
+**Example — Empty slot:**
+
+Request:
 ```
-OK GET PRESET/3/NAME:ERR5 PRESET/3/LOCK:ERR5 PRESET/3/CLEARED:TRUE CID:<id> \r\n
+GET PRESET/3/NAME PRESET/3/LOCK PRESET/3/CLEARED CID:1002\r\n
+```
+
+Response:
+```
+OK GET PRESET/3/NAME:ERR5 PRESET/3/LOCK:ERR5 PRESET/3/CLEARED:TRUE CID:1002 \r\n
 ```
 
 | Key | Value | Description |
