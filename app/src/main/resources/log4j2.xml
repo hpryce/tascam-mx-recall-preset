@@ -9,7 +9,7 @@
         <Root level="WARN">
             <AppenderRef ref="Console"/>
         </Root>
-        <Logger name="uk.co.hpnet.tascam" level="WARN" additivity="false">
+        <Logger name="uk.co.hpnet.tascam" level="${sys:tascam.logLevel:-WARN}" additivity="false">
             <AppenderRef ref="Console"/>
         </Logger>
     </Loggers>
