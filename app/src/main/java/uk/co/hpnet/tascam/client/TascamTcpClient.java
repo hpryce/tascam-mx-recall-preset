@@ -5,6 +5,8 @@ import uk.co.hpnet.tascam.model.Preset;
 import java.io.*;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
@@ -17,6 +19,7 @@ public class TascamTcpClient implements TascamClient {
 
     private static final int DEFAULT_TIMEOUT_MS = 10000;
     private static final AtomicInteger GLOBAL_CID_COUNTER = new AtomicInteger(1000);
+    private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
     
     private static final Pattern PRESET_NAME_PATTERN = Pattern.compile("PRESET/(\\d+)/NAME:\"([^\"]+)\"");
     private static final Pattern PRESET_LOCK_PATTERN = Pattern.compile("PRESET/(\\d+)/LOCK:(ON|OFF)");
@@ -25,6 +28,7 @@ public class TascamTcpClient implements TascamClient {
     private static final Pattern CURRENT_NAME_PATTERN = Pattern.compile("PRESET/NAME:\"([^\"]+)\"");
 
     private final AtomicInteger cidCounter;
+    private boolean debugEnabled = false;
     private Socket socket;
     private BufferedReader reader;
     private PrintWriter writer;
@@ -43,29 +47,43 @@ public class TascamTcpClient implements TascamClient {
         this.cidCounter = cidCounter;
     }
 
+    /**
+     * Enable debug logging to stderr.
+     */
+    public void setDebugEnabled(boolean enabled) {
+        this.debugEnabled = enabled;
+    }
+
+    private void debug(String message) {
+        if (debugEnabled) {
+            System.err.printf("%s [DEBUG] TascamTcpClient - %s%n", 
+                LocalTime.now().format(TIME_FORMAT), message);
+        }
+    }
+
     @Override
     public void connect(String host, int port, String password) throws IOException {
+        debug("Connecting to " + host + ":" + port);
         socket = new Socket(host, port);
         socket.setSoTimeout(DEFAULT_TIMEOUT_MS);
         reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
         writer = new PrintWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8), true);
 
         // Send initial CR+LF to start login
-        writer.print("\r\n");
-        writer.flush();
+        sendRaw("\r\n");
 
         // Read "Enter Password" prompt
-        String response = reader.readLine();
+        String response = readLine();
         if (response == null || !response.contains("Enter Password")) {
             throw new IOException("Unexpected response: " + response);
         }
 
         // Send password
-        writer.print(password + "\r\n");
-        writer.flush();
+        debug("Sending password");
+        sendRaw(password + "\r\n");
 
         // Read login result
-        response = reader.readLine();
+        response = readLine();
         if (response == null) {
             throw new IOException("No response after password");
         }
@@ -75,10 +93,12 @@ public class TascamTcpClient implements TascamClient {
         if (!response.contains("Login Successful")) {
             throw new IOException("Login failed: " + response);
         }
+        debug("Login successful");
     }
 
     @Override
     public void close() {
+        debug("Closing connection");
         try {
             if (socket != null && !socket.isClosed()) {
                 socket.close();
@@ -128,11 +148,25 @@ public class TascamTcpClient implements TascamClient {
         return Optional.of(new Preset(number, name));
     }
 
+    private void sendRaw(String data) {
+        writer.print(data);
+        writer.flush();
+    }
+
+    private String readLine() throws IOException {
+        String line = reader.readLine();
+        if (line != null) {
+            debug("RECV: " + line);
+        }
+        return line;
+    }
+
     private String sendCommand(String command) throws IOException {
+        debug("SEND: " + command);
         writer.print(command + "\r\n");
         writer.flush();
         
-        String response = reader.readLine();
+        String response = readLine();
         if (response == null) {
             throw new IOException("No response from device");
         }
