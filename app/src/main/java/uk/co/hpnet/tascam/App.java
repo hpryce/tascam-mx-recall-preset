@@ -34,33 +34,61 @@ public class App implements Callable<Integer> {
     @Option(names = {"-d", "--debug"}, description = "Enable debug output (raw protocol messages)")
     private boolean debug;
 
+    @Option(names = {"--host"}, description = "Mixer hostname or IP address")
+    private String host;
+
+    @Option(names = {"-p", "--port"}, description = "Mixer port (default: 54726)")
+    private Integer port;
+
+    /**
+     * Resolves effective host from CLI arg or config file.
+     * Returns empty if neither is set.
+     */
+    Optional<String> getEffectiveHost(Config config) {
+        if (host != null) {
+            return Optional.of(host);
+        }
+        return config.host();
+    }
+
+    /**
+     * Resolves effective port from CLI arg, config file, or default.
+     */
+    int getEffectivePort(Config config) {
+        if (port != null) {
+            return port;
+        }
+        return config.port().orElse(DEFAULT_PORT);
+    }
+
+    /**
+     * Resolves effective password from config file or prompts user.
+     */
+    String getEffectivePassword(Config config) {
+        return config.password().orElseGet(App::promptForPassword);
+    }
+
     @Command(name = "list", description = "List all presets", mixinStandardHelpOptions = true)
     static class ListCommand implements Callable<Integer> {
 
         @CommandLine.ParentCommand
         private App parent;
 
-        @Option(names = {"--host"}, description = "Mixer hostname or IP address")
-        private String host;
-
-        @Option(names = {"-p", "--port"}, description = "Mixer port (default: 54726)")
-        private Integer port;
-
         @Override
         public Integer call() {
             Config config = Config.load();
             
-            String effectiveHost = host != null ? host : config.host().orElse(null);
-            if (effectiveHost == null) {
+            Optional<String> effectiveHost = parent.getEffectiveHost(config);
+            if (effectiveHost.isEmpty()) {
                 System.err.println("Error: --host is required (or set host in ~/.tascam-preset.conf)");
                 return 1;
             }
             
-            int effectivePort = port != null ? port : config.port().orElse(DEFAULT_PORT);
-            String password = config.password().orElseGet(App::promptForPassword);
+            int effectivePort = parent.getEffectivePort(config);
+            String password = parent.getEffectivePassword(config);
             
             try (TascamClient client = new TascamTcpClient(0)) {
-                client.connect(effectiveHost, effectivePort, password);
+                client.connect(effectiveHost.get(), effectivePort, password);
                 
                 List<Preset> presets = client.listPresets();
                 Optional<Preset> current = client.getCurrentPreset();
@@ -100,12 +128,6 @@ public class App implements Callable<Integer> {
         @CommandLine.ParentCommand
         private App parent;
 
-        @Option(names = {"--host"}, description = "Mixer hostname or IP address")
-        private String host;
-
-        @Option(names = {"-p", "--port"}, description = "Mixer port (default: 54726)")
-        private Integer port;
-
         @Option(names = {"-w", "--wait"}, defaultValue = "5", 
                 description = "Seconds to wait before verification (0 to skip verification, default: 5)")
         private double waitSeconds;
@@ -117,19 +139,19 @@ public class App implements Callable<Integer> {
         public Integer call() {
             Config config = Config.load();
             
-            String effectiveHost = host != null ? host : config.host().orElse(null);
-            if (effectiveHost == null) {
+            Optional<String> effectiveHost = parent.getEffectiveHost(config);
+            if (effectiveHost.isEmpty()) {
                 System.err.println("Error: --host is required (or set host in ~/.tascam-preset.conf)");
                 return 1;
             }
             
-            int effectivePort = port != null ? port : config.port().orElse(DEFAULT_PORT);
-            String password = config.password().orElseGet(App::promptForPassword);
+            int effectivePort = parent.getEffectivePort(config);
+            String password = parent.getEffectivePassword(config);
             
             long waitMs = (long) (waitSeconds * 1000);
             
             try (TascamClient client = new TascamTcpClient(waitMs)) {
-                client.connect(effectiveHost, effectivePort, password);
+                client.connect(effectiveHost.get(), effectivePort, password);
                 
                 // Find preset by name
                 List<Preset> presets = client.listPresets();
