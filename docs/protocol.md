@@ -107,31 +107,24 @@ OK GET PRESET/3/NAME:ERR5 PRESET/3/LOCK:ERR5 PRESET/3/CLEARED:TRUE CID:<id> \r\n
 
 ### Recall (Load) Preset
 
+Request:
 ```
-SET PRESET/LOAD:<n> CID:<id>\r\n
-```
-
-Response (immediate):
-```
-OK SET CID:<id> \r\n
+SET PRESET/LOAD:1 CID:1003\r\n
 ```
 
-Followed by NOTIFY (asynchronous):
+Response:
 ```
-NOTIFY PRESET/CUR:<n> PRESET/NAME:"<name>"\r\n
+OK SET CID:1003 \r\n
+```
+
+After a successful recall, the device also sends an asynchronous NOTIFY:
+```
+NOTIFY PRESET/CUR:1 PRESET/NAME:"Weekday Mass"\r\n
 ```
 
 | Parameter | Value | Description |
 |-----------|-------|-------------|
 | `<n>` | `1`-`50` | Preset number to load |
-
-### Store (Save) Preset
-
-*(Not required for this project, but documented for completeness)*
-
-```
-SET PRESET/STORE:<n> CID:<id>\r\n
-```
 
 ---
 

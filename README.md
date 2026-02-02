@@ -23,10 +23,9 @@ A command-line tool to list and recall presets on Tascam MX-8A and DCP series mi
 
 # Recall a preset by name
 ./gradlew run --args="recall-by-name 'My Preset' --host 192.168.1.100"
-
-# With password (if configured on mixer)
-./gradlew run --args="list --host 192.168.1.100 --password secret"
 ```
+
+If the mixer has a password configured, the tool will prompt for it on stdin.
 
 ## Documentation
 
