@@ -3,8 +3,9 @@
  */
 
 plugins {
-    id 'application'
+    id 'java'
     alias(libs.plugins.graalvm.native)
+    alias(libs.plugins.shadow)
 }
 
 repositories {
@@ -30,7 +31,37 @@ java {
     targetCompatibility = JavaVersion.VERSION_21
 }
 
-application {
+// Configure JAR manifest
+jar {
+    manifest {
+        attributes(
+            'Main-Class': 'uk.co.hpnet.tascam.App'
+        )
+    }
+}
+
+// Configure shadow JAR (fat JAR with all dependencies)
+shadowJar {
+    archiveBaseName = 'tascam-preset'
+    archiveClassifier = ''
+    archiveVersion = ''
+    
+    manifest {
+        attributes(
+            'Main-Class': 'uk.co.hpnet.tascam.App',
+            'Implementation-Title': 'Tascam MX Preset Tool'
+        )
+    }
+    
+    mergeServiceFiles()
+}
+
+// Make build depend on shadowJar
+build.dependsOn shadowJar
+
+// Add run task for convenience
+tasks.register('run', JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
     mainClass = 'uk.co.hpnet.tascam.App'
 }
 
