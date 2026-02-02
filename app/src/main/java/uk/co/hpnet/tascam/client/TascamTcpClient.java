@@ -40,7 +40,16 @@ public class TascamTcpClient implements TascamClient {
      * Creates a client using the global CID counter and default wait times.
      */
     public TascamTcpClient() {
-        this(GLOBAL_CID_COUNTER, DEFAULT_RECALL_WAIT_MS, Sleeper.defaultSleeper());
+        this(DEFAULT_RECALL_WAIT_MS);
+    }
+
+    /**
+     * Creates a client with custom recall wait time.
+     *
+     * @param recallWaitMs milliseconds to wait after recall before verification (0 to skip verification)
+     */
+    public TascamTcpClient(long recallWaitMs) {
+        this(GLOBAL_CID_COUNTER, recallWaitMs, Sleeper.defaultSleeper());
     }
 
     /**
@@ -173,22 +182,24 @@ public class TascamTcpClient implements TascamClient {
             }
         }
         
-        // Wait for mixer to stabilize after preset load
+        // Wait for mixer to stabilize after preset load and verify
         if (recallWaitMs > 0) {
             sleeper.sleep(recallWaitMs);
+            
+            // Verify the preset was actually loaded
+            Optional<Preset> current = getCurrentPreset();
+            if (current.isEmpty()) {
+                throw new PresetRecallException("Failed to verify preset after recall");
+            }
+            if (current.get().number() != presetNumber) {
+                throw new PresetRecallException("Preset recall verification failed: expected " + presetNumber 
+                    + " but got " + current.get().number());
+            }
+            
+            logger.debug("Preset {} recalled and verified successfully", presetNumber);
+        } else {
+            logger.debug("Preset {} recall sent (verification skipped)", presetNumber);
         }
-        
-        // Verify the preset was actually loaded
-        Optional<Preset> current = getCurrentPreset();
-        if (current.isEmpty()) {
-            throw new PresetRecallException("Failed to verify preset after recall");
-        }
-        if (current.get().number() != presetNumber) {
-            throw new PresetRecallException("Preset recall verification failed: expected " + presetNumber 
-                + " but got " + current.get().number());
-        }
-        
-        logger.debug("Preset {} recalled and verified successfully", presetNumber);
     }
 
     private void sendRaw(String data) {

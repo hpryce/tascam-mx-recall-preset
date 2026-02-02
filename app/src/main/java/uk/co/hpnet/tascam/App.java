@@ -93,6 +93,10 @@ public class App implements Callable<Integer> {
         @Option(names = {"-p", "--port"}, defaultValue = "54726", description = "Mixer port (default: 54726)")
         private int port;
 
+        @Option(names = {"-w", "--wait"}, defaultValue = "5", 
+                description = "Seconds to wait before verification (0 to skip verification, default: 5)")
+        private double waitSeconds;
+
         @Parameters(index = "0", description = "Preset name to recall")
         private String presetName;
 
@@ -100,7 +104,9 @@ public class App implements Callable<Integer> {
         public Integer call() {
             String password = promptForPassword();
             
-            try (TascamClient client = new TascamTcpClient()) {
+            long waitMs = (long) (waitSeconds * 1000);
+            
+            try (TascamClient client = new TascamTcpClient(waitMs)) {
                 client.connect(host, port, password);
                 
                 // Find preset by name

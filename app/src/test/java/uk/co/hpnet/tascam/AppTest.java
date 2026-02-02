@@ -99,7 +99,7 @@ class AppTest {
         );
 
         try (FakeTascamServer server = new FakeTascamServer(presets, 1)) {
-            CapturedOutput output = runWithStdin("\n", "recall", "--host", "localhost", "-p", String.valueOf(server.getPort()), "Quiet Mode");
+            CapturedOutput output = runWithStdin("\n", "recall", "--host", "localhost", "-p", String.valueOf(server.getPort()), "-w", "0.01", "Quiet Mode");
             
             assertTrue(output.stdout.contains("Recalled preset 2"), "Should show recalled preset number");
             assertTrue(output.stdout.contains("Quiet Mode"), "Should show recalled preset name");
@@ -114,8 +114,8 @@ class AppTest {
         );
 
         try (FakeTascamServer server = new FakeTascamServer(presets, 1)) {
-            // Use lowercase name
-            CapturedOutput output = runWithStdin("\n", "recall", "--host", "localhost", "-p", String.valueOf(server.getPort()), "default mix");
+            // Use lowercase name - recalling current preset, skip verification for speed
+            CapturedOutput output = runWithStdin("\n", "recall", "--host", "localhost", "-p", String.valueOf(server.getPort()), "-w", "0", "default mix");
             
             assertTrue(output.stdout.contains("Recalled preset 1"), "Case-insensitive match should work");
         }
