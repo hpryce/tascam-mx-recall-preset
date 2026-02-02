@@ -6,6 +6,7 @@ A command-line tool to list and recall presets on Tascam MX-8A and DCP series mi
 
 - **List presets** — Display all saved presets with current preset indicator
 - **Recall by name** — Load a preset by its name
+- **Debug mode** — View raw protocol messages
 
 ## Building
 
@@ -41,11 +42,27 @@ The native image is a standalone binary with no JVM dependency — ideal for Ras
 # List all presets
 tascam-preset list --host 192.168.1.100
 
+# Recall a preset by name
+tascam-preset recall --host 192.168.1.100 "Sunday Service"
+
 # With custom port
 tascam-preset list --host 192.168.1.100 -p 54726
+
+# Enable debug output (raw protocol messages)
+tascam-preset --debug list --host 192.168.1.100
 ```
 
 If the mixer has a password configured, the tool will prompt for it on stdin.
+
+### Output Format
+
+The `list` command shows all presets, with the current preset marked with `*`:
+
+```
+* 1: "Sunday Service"
+  2: "Weekday Mass"
+  3: "Choir Practice" [locked]
+```
 
 ## Documentation
 

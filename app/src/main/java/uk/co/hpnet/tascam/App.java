@@ -4,6 +4,7 @@ import org.apache.logging.log4j.core.config.Configurator;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
 import uk.co.hpnet.tascam.client.TascamClient;
 import uk.co.hpnet.tascam.client.TascamTcpClient;
 import uk.co.hpnet.tascam.model.Preset;
@@ -76,6 +77,51 @@ public class App implements Callable<Integer> {
         }
     }
 
+    @Command(name = "recall", description = "Recall (load) a preset by name", mixinStandardHelpOptions = true)
+    static class RecallCommand implements Callable<Integer> {
+
+        @CommandLine.ParentCommand
+        private App parent;
+
+        @Option(names = {"--host"}, required = true, description = "Mixer hostname or IP address")
+        private String host;
+
+        @Option(names = {"-p", "--port"}, defaultValue = "54726", description = "Mixer port (default: 54726)")
+        private int port;
+
+        @Parameters(index = "0", description = "Preset name to recall")
+        private String presetName;
+
+        @Override
+        public Integer call() {
+            String password = promptForPassword();
+            
+            try (TascamClient client = new TascamTcpClient()) {
+                client.connect(host, port, password);
+                
+                // Find preset by name
+                List<Preset> presets = client.listPresets();
+                Optional<Preset> match = presets.stream()
+                    .filter(p -> p.name().equalsIgnoreCase(presetName))
+                    .findFirst();
+                
+                if (match.isEmpty()) {
+                    System.err.println("Error: No preset found with name \"" + presetName + "\"");
+                    return 1;
+                }
+                
+                Preset preset = match.get();
+                client.recallPreset(preset.number());
+                System.out.println("Recalled preset " + preset.number() + ": \"" + preset.name() + "\"");
+                
+                return 0;
+            } catch (Exception e) {
+                System.err.println("Error: " + e.getMessage());
+                return 1;
+            }
+        }
+    }
+
     private static String promptForPassword() {
         Console console = System.console();
         if (console != null) {
@@ -112,6 +158,7 @@ public class App implements Callable<Integer> {
         
         return new CommandLine(new App())
                 .addSubcommand("list", new ListCommand())
+                .addSubcommand("recall", new RecallCommand())
                 .execute(args);
     }
 

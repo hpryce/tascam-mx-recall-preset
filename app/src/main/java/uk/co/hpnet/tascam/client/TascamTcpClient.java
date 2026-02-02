@@ -134,6 +134,24 @@ public class TascamTcpClient implements TascamClient {
         return Optional.of(new Preset(number, name));
     }
 
+    @Override
+    public void recallPreset(int presetNumber) throws IOException {
+        if (presetNumber < 1 || presetNumber > 50) {
+            throw new IllegalArgumentException("Preset number must be between 1 and 50");
+        }
+        
+        String cid = generateCid();
+        String response = sendCommand("SET PRESET/LOAD:" + presetNumber + " CID:" + cid);
+        
+        // Response should be "OK SET CID:<id>"
+        if (!response.startsWith("OK SET")) {
+            throw new IOException("Failed to recall preset: " + response);
+        }
+        
+        // Device may send async NOTIFY, but we don't need to wait for it
+        logger.debug("Preset {} recalled successfully", presetNumber);
+    }
+
     private void sendRaw(String data) {
         writer.print(data);
         writer.flush();
