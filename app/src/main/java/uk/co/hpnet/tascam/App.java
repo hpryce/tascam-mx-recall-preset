@@ -1,7 +1,6 @@
 package uk.co.hpnet.tascam;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.core.config.Configurator;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -42,7 +41,10 @@ public class App implements Callable<Integer> {
         @Override
         public Integer call() {
             if (parent.debug) {
-                Configurator.setLevel("uk.co.hpnet.tascam", Level.DEBUG);
+                // Force load TascamTcpClient class to initialize its logger, then set level
+                org.apache.logging.log4j.core.Logger tcpLogger = 
+                    (org.apache.logging.log4j.core.Logger) org.apache.logging.log4j.LogManager.getLogger(TascamTcpClient.class);
+                tcpLogger.setLevel(Level.DEBUG);
             }
 
             String password = promptForPassword();
