@@ -6,7 +6,7 @@ import java.io.*;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -16,15 +16,32 @@ import java.util.regex.Pattern;
 public class TascamTcpClient implements TascamClient {
 
     private static final int DEFAULT_TIMEOUT_MS = 10000;
+    private static final AtomicInteger GLOBAL_CID_COUNTER = new AtomicInteger(1000);
+    
     private static final Pattern PRESET_NAME_PATTERN = Pattern.compile("PRESET/(\\d+)/NAME:\"([^\"]+)\"");
     private static final Pattern PRESET_LOCK_PATTERN = Pattern.compile("PRESET/(\\d+)/LOCK:(ON|OFF)");
     private static final Pattern PRESET_CLEARED_PATTERN = Pattern.compile("PRESET/(\\d+)/CLEARED:(TRUE|FALSE)");
     private static final Pattern CURRENT_PRESET_PATTERN = Pattern.compile("PRESET/CUR:(\\d+)");
     private static final Pattern CURRENT_NAME_PATTERN = Pattern.compile("PRESET/NAME:\"([^\"]+)\"");
 
+    private final AtomicInteger cidCounter;
     private Socket socket;
     private BufferedReader reader;
     private PrintWriter writer;
+
+    /**
+     * Creates a client using the global CID counter.
+     */
+    public TascamTcpClient() {
+        this(GLOBAL_CID_COUNTER);
+    }
+
+    /**
+     * Creates a client with a custom CID counter (for testing).
+     */
+    public TascamTcpClient(AtomicInteger cidCounter) {
+        this.cidCounter = cidCounter;
+    }
 
     @Override
     public void connect(String host, int port, String password) throws IOException {
@@ -101,14 +118,14 @@ public class TascamTcpClient implements TascamClient {
         Matcher curMatcher = CURRENT_PRESET_PATTERN.matcher(response);
         Matcher nameMatcher = CURRENT_NAME_PATTERN.matcher(response);
         
-        if (curMatcher.find() && nameMatcher.find()) {
-            int number = Integer.parseInt(curMatcher.group(1));
-            String name = nameMatcher.group(1);
-            // Current preset lock status requires separate query, default to false
-            return Optional.of(new Preset(number, name, false));
+        if (!curMatcher.find() || !nameMatcher.find()) {
+            return Optional.empty();
         }
-        
-        return Optional.empty();
+
+        int number = Integer.parseInt(curMatcher.group(1));
+        String name = nameMatcher.group(1);
+        // Lock status not queried for current preset - use Optional.empty()
+        return Optional.of(new Preset(number, name));
     }
 
     private String sendCommand(String command) throws IOException {
@@ -149,12 +166,12 @@ public class TascamTcpClient implements TascamClient {
         // Build preset objects for non-cleared slots
         for (Integer num : names.keySet()) {
             if (!cleared.getOrDefault(num, true)) {
-                presets.add(new Preset(num, names.get(num), locks.getOrDefault(num, false)));
+                presets.add(new Preset(num, names.get(num), locks.get(num)));
             }
         }
     }
 
     private String generateCid() {
-        return String.valueOf(ThreadLocalRandom.current().nextInt(1000, 10000));
+        return String.valueOf(cidCounter.getAndIncrement());
     }
 }

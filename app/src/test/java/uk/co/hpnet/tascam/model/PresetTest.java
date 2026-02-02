@@ -7,15 +7,6 @@ import static org.junit.jupiter.api.Assertions.*;
 class PresetTest {
 
     @Test
-    void validPresetCreation() {
-        Preset preset = new Preset(1, "Test Preset", false);
-        
-        assertEquals(1, preset.number());
-        assertEquals("Test Preset", preset.name());
-        assertFalse(preset.locked());
-    }
-
-    @Test
     void presetNumberTooLowThrows() {
         assertThrows(IllegalArgumentException.class, () -> 
             new Preset(0, "Test", false));
@@ -37,13 +28,5 @@ class PresetTest {
     void blankNameThrows() {
         assertThrows(IllegalArgumentException.class, () -> 
             new Preset(1, "   ", false));
-    }
-
-    @Test
-    void lockedPreset() {
-        Preset preset = new Preset(50, "Locked Preset", true);
-        
-        assertEquals(50, preset.number());
-        assertTrue(preset.locked());
     }
 }

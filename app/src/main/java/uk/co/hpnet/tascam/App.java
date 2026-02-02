@@ -50,11 +50,14 @@ public class App implements Callable<Integer> {
                 
                 for (Preset preset : presets) {
                     String marker = (preset.number() == currentNumber) ? "*" : " ";
+                    String lockIndicator = preset.locked()
+                        .map(locked -> locked ? " [locked]" : "")
+                        .orElse("");
                     System.out.printf("%s%2d: \"%s\"%s%n", 
                         marker, 
                         preset.number(), 
                         preset.name(),
-                        preset.locked() ? " [locked]" : "");
+                        lockIndicator);
                 }
                 
                 return 0;
