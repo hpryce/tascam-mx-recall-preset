@@ -45,6 +45,8 @@ public class Config {
     /**
      * Loads config from ~/.tascam-preset.conf if it exists.
      * Returns empty config if file doesn't exist.
+     * 
+     * @throws ConfigException if config file exists but is invalid
      */
     public static Config load() {
         Path configPath = Path.of(System.getProperty("user.home"), CONFIG_FILENAME);
@@ -58,14 +60,27 @@ public class Config {
             props.load(Files.newBufferedReader(configPath));
             
             Optional<String> host = Optional.ofNullable(props.getProperty("host"));
-            Optional<Integer> port = Optional.ofNullable(props.getProperty("port"))
-                .map(Integer::parseInt);
+            Optional<Integer> port;
+            try {
+                port = Optional.ofNullable(props.getProperty("port"))
+                    .map(Integer::parseInt);
+            } catch (NumberFormatException e) {
+                throw new ConfigException("Invalid port in " + configPath + ": " + props.getProperty("port"));
+            }
             Optional<String> password = Optional.ofNullable(props.getProperty("password"));
             
             return new Config(host, port, password);
-        } catch (IOException | NumberFormatException e) {
-            // If config file is invalid, treat as empty
-            return empty();
+        } catch (IOException e) {
+            throw new ConfigException("Failed to read " + configPath + ": " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Exception thrown when config file is invalid.
+     */
+    public static class ConfigException extends RuntimeException {
+        public ConfigException(String message) {
+            super(message);
         }
     }
     

@@ -41,31 +41,26 @@ public class App implements Callable<Integer> {
     private Integer port;
 
     /**
-     * Resolves effective host from CLI arg or config file.
-     * Returns empty if neither is set.
+     * Resolved connection settings.
      */
-    Optional<String> getEffectiveHost(Config config) {
-        if (host != null) {
-            return Optional.of(host);
-        }
-        return config.host();
-    }
+    record ConnectionSettings(String host, int port, String password) {}
 
     /**
-     * Resolves effective port from CLI arg, config file, or default.
+     * Resolves connection settings from CLI args and config file.
+     * Returns empty if host is not set anywhere.
      */
-    int getEffectivePort(Config config) {
-        if (port != null) {
-            return port;
+    Optional<ConnectionSettings> resolveConnectionSettings() {
+        Config config = Config.load();
+        
+        String effectiveHost = host != null ? host : config.host().orElse(null);
+        if (effectiveHost == null) {
+            return Optional.empty();
         }
-        return config.port().orElse(DEFAULT_PORT);
-    }
-
-    /**
-     * Resolves effective password from config file or prompts user.
-     */
-    String getEffectivePassword(Config config) {
-        return config.password().orElseGet(App::promptForPassword);
+        
+        int effectivePort = port != null ? port : config.port().orElse(DEFAULT_PORT);
+        String effectivePassword = config.password().orElseGet(App::promptForPassword);
+        
+        return Optional.of(new ConnectionSettings(effectiveHost, effectivePort, effectivePassword));
     }
 
     @Command(name = "list", description = "List all presets", mixinStandardHelpOptions = true)
@@ -76,19 +71,16 @@ public class App implements Callable<Integer> {
 
         @Override
         public Integer call() {
-            Config config = Config.load();
-            
-            Optional<String> effectiveHost = parent.getEffectiveHost(config);
-            if (effectiveHost.isEmpty()) {
+            Optional<ConnectionSettings> settings = parent.resolveConnectionSettings();
+            if (settings.isEmpty()) {
                 System.err.println("Error: --host is required (or set host in ~/.tascam-preset.conf)");
                 return 1;
             }
             
-            int effectivePort = parent.getEffectivePort(config);
-            String password = parent.getEffectivePassword(config);
+            ConnectionSettings conn = settings.get();
             
             try (TascamClient client = new TascamTcpClient(0)) {
-                client.connect(effectiveHost.get(), effectivePort, password);
+                client.connect(conn.host(), conn.port(), conn.password());
                 
                 List<Preset> presets = client.listPresets();
                 Optional<Preset> current = client.getCurrentPreset();
@@ -137,21 +129,17 @@ public class App implements Callable<Integer> {
 
         @Override
         public Integer call() {
-            Config config = Config.load();
-            
-            Optional<String> effectiveHost = parent.getEffectiveHost(config);
-            if (effectiveHost.isEmpty()) {
+            Optional<ConnectionSettings> settings = parent.resolveConnectionSettings();
+            if (settings.isEmpty()) {
                 System.err.println("Error: --host is required (or set host in ~/.tascam-preset.conf)");
                 return 1;
             }
             
-            int effectivePort = parent.getEffectivePort(config);
-            String password = parent.getEffectivePassword(config);
-            
+            ConnectionSettings conn = settings.get();
             long waitMs = (long) (waitSeconds * 1000);
             
             try (TascamClient client = new TascamTcpClient(waitMs)) {
-                client.connect(effectiveHost.get(), effectivePort, password);
+                client.connect(conn.host(), conn.port(), conn.password());
                 
                 // Find preset by name
                 List<Preset> presets = client.listPresets();
