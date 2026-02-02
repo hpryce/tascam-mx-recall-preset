@@ -22,7 +22,7 @@ class AppTest {
         );
 
         try (FakeTascamServer server = new FakeTascamServer(presets, 2)) {
-            CapturedOutput output = runWithStdin("\n", "list", "--host", "localhost", "-p", String.valueOf(server.getPort()));
+            CapturedOutput output = runWithStdin("\n", "--host", "localhost", "-p", String.valueOf(server.getPort()), "list");
             
             assertTrue(output.stdout.contains("1: \"Default Mix\""), "Should show preset 1");
             assertTrue(output.stdout.contains("2: \"Quiet Mode\""), "Should show preset 2");
@@ -37,7 +37,7 @@ class AppTest {
         );
 
         try (FakeTascamServer server = new FakeTascamServer(presets, 1)) {
-            CapturedOutput output = runWithStdin("\n", "list", "--host", "localhost", "-p", String.valueOf(server.getPort()));
+            CapturedOutput output = runWithStdin("\n", "--host", "localhost", "-p", String.valueOf(server.getPort()), "list");
             
             assertTrue(output.stdout.contains("[locked]"), "Should show locked indicator");
         }
@@ -48,7 +48,7 @@ class AppTest {
         Map<Integer, FakeTascamServer.TestPreset> presets = Map.of();
 
         try (FakeTascamServer server = new FakeTascamServer(presets, 0)) {
-            CapturedOutput output = runWithStdin("\n", "list", "--host", "localhost", "-p", String.valueOf(server.getPort()));
+            CapturedOutput output = runWithStdin("\n", "--host", "localhost", "-p", String.valueOf(server.getPort()), "list");
             
             assertTrue(output.stdout.contains("No presets found"), "Should show no presets message");
         }
@@ -61,7 +61,7 @@ class AppTest {
         );
 
         try (FakeTascamServer server = new FakeTascamServer(presets, 1)) {
-            CapturedOutput output = runWithStdin("\n", "--debug", "list", "--host", "localhost", "-p", String.valueOf(server.getPort()));
+            CapturedOutput output = runWithStdin("\n", "--debug", "--host", "localhost", "-p", String.valueOf(server.getPort()), "list");
             
             // Verify stdout still has normal output
             assertTrue(output.stdout.contains("1: \"Test Preset\""), "Should still list presets");
@@ -83,7 +83,7 @@ class AppTest {
         );
 
         try (FakeTascamServer server = new FakeTascamServer(presets, 1)) {
-            CapturedOutput output = runWithStdin("\n", "list", "--host", "localhost", "-p", String.valueOf(server.getPort()));
+            CapturedOutput output = runWithStdin("\n", "--host", "localhost", "-p", String.valueOf(server.getPort()), "list");
             
             // Without --debug, stderr should be empty (no protocol messages)
             assertFalse(output.stderr.contains("SEND:"), "Should not have debug output without --debug flag");
@@ -99,7 +99,7 @@ class AppTest {
         );
 
         try (FakeTascamServer server = new FakeTascamServer(presets, 1)) {
-            CapturedOutput output = runWithStdin("\n", "recall", "--host", "localhost", "-p", String.valueOf(server.getPort()), "-w", "0.01", "Quiet Mode");
+            CapturedOutput output = runWithStdin("\n", "--host", "localhost", "-p", String.valueOf(server.getPort()), "recall", "-w", "0.01", "Quiet Mode");
             
             assertTrue(output.stdout.contains("Recalled preset 2"), "Should show recalled preset number");
             assertTrue(output.stdout.contains("Quiet Mode"), "Should show recalled preset name");
@@ -115,7 +115,7 @@ class AppTest {
 
         try (FakeTascamServer server = new FakeTascamServer(presets, 1)) {
             // Use lowercase name - recalling current preset with minimal wait
-            CapturedOutput output = runWithStdin("\n", "recall", "--host", "localhost", "-p", String.valueOf(server.getPort()), "-w", "0.01", "default mix");
+            CapturedOutput output = runWithStdin("\n", "--host", "localhost", "-p", String.valueOf(server.getPort()), "recall", "-w", "0.01", "default mix");
             
             assertTrue(output.stdout.contains("Recalled preset 1"), "Case-insensitive match should work");
         }
@@ -128,7 +128,7 @@ class AppTest {
         );
 
         try (FakeTascamServer server = new FakeTascamServer(presets, 1)) {
-            CapturedOutput output = runWithStdin("\n", "recall", "--host", "localhost", "-p", String.valueOf(server.getPort()), "Nonexistent");
+            CapturedOutput output = runWithStdin("\n", "--host", "localhost", "-p", String.valueOf(server.getPort()), "recall", "Nonexistent");
             
             assertTrue(output.stderr.contains("No preset found"), "Should show error for nonexistent preset");
         }
