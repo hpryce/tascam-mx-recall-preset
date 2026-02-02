@@ -1,5 +1,6 @@
 package uk.co.hpnet.tascam;
 
+import org.apache.logging.log4j.core.config.Configurator;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -8,6 +9,7 @@ import uk.co.hpnet.tascam.client.TascamTcpClient;
 import uk.co.hpnet.tascam.model.Preset;
 
 import java.io.Console;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.Scanner;
@@ -22,8 +24,14 @@ import java.util.concurrent.Callable;
          description = "List and recall presets on Tascam MX-DCP series mixers")
 public class App implements Callable<Integer> {
 
+    @Option(names = {"-d", "--debug"}, description = "Enable debug output (raw protocol messages)")
+    private boolean debug;
+
     @Command(name = "list", description = "List all presets", mixinStandardHelpOptions = true)
     static class ListCommand implements Callable<Integer> {
+
+        @CommandLine.ParentCommand
+        private App parent;
 
         @Option(names = {"--host"}, required = true, description = "Mixer hostname or IP address")
         private String host;
@@ -93,6 +101,15 @@ public class App implements Callable<Integer> {
      * Use this for testing; main() calls this then System.exit().
      */
     static int run(String[] args) {
+        // Set log level BEFORE Log4j initializes (reads ${sys:tascam.logLevel} from log4j2.xml)
+        if (Arrays.asList(args).contains("-d") || Arrays.asList(args).contains("--debug")) {
+            System.setProperty("tascam.logLevel", "DEBUG");
+        } else {
+            System.setProperty("tascam.logLevel", "WARN");
+        }
+        // Force Log4j2 to re-read configuration with updated system property
+        Configurator.reconfigure();
+        
         return new CommandLine(new App())
                 .addSubcommand("list", new ListCommand())
                 .execute(args);
