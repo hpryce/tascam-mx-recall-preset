@@ -4,6 +4,7 @@
 [versions]
 guava = "33.4.6-jre"
 junit-jupiter = "5.12.1"
+mockito = "5.15.2"
 picocli = "4.7.6"
 shadow = "8.3.6"
 log4j = "2.24.3"
@@ -11,6 +12,8 @@ log4j = "2.24.3"
 [libraries]
 guava = { module = "com.google.guava:guava", version.ref = "guava" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }
+mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
+mockito-junit = { module = "org.mockito:mockito-junit-jupiter", version.ref = "mockito" }
 picocli = { module = "info.picocli:picocli", version.ref = "picocli" }
 picocli-codegen = { module = "info.picocli:picocli-codegen", version.ref = "picocli" }
 log4j-api = { module = "org.apache.logging.log4j:log4j-api", version.ref = "log4j" }

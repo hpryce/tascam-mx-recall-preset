@@ -31,6 +31,7 @@ public class TascamTcpClient implements TascamClient {
 
     private final AtomicInteger cidCounter;
     private final long recallWaitMs;
+    private final Sleeper sleeper;
     private Socket socket;
     private BufferedReader reader;
     private PrintWriter writer;
@@ -39,22 +40,16 @@ public class TascamTcpClient implements TascamClient {
      * Creates a client using the global CID counter and default wait times.
      */
     public TascamTcpClient() {
-        this(GLOBAL_CID_COUNTER, DEFAULT_RECALL_WAIT_MS);
+        this(GLOBAL_CID_COUNTER, DEFAULT_RECALL_WAIT_MS, Sleeper.defaultSleeper());
     }
 
     /**
-     * Creates a client with a custom CID counter (for testing).
+     * Creates a client with custom dependencies (for testing).
      */
-    TascamTcpClient(AtomicInteger cidCounter) {
-        this(cidCounter, DEFAULT_RECALL_WAIT_MS);
-    }
-
-    /**
-     * Creates a client with custom CID counter and recall wait time (for testing).
-     */
-    TascamTcpClient(AtomicInteger cidCounter, long recallWaitMs) {
+    TascamTcpClient(AtomicInteger cidCounter, long recallWaitMs, Sleeper sleeper) {
         this.cidCounter = cidCounter;
         this.recallWaitMs = recallWaitMs;
+        this.sleeper = sleeper;
     }
 
     @Override
@@ -168,7 +163,7 @@ public class TascamTcpClient implements TascamClient {
         // Wait for mixer to stabilize after preset load
         if (recallWaitMs > 0) {
             try {
-                Thread.sleep(recallWaitMs);
+                sleeper.sleep(recallWaitMs);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new IOException("Interrupted while waiting for preset load", e);
@@ -178,10 +173,10 @@ public class TascamTcpClient implements TascamClient {
         // Verify the preset was actually loaded
         Optional<Preset> current = getCurrentPreset();
         if (current.isEmpty()) {
-            throw new IOException("Failed to verify preset after recall");
+            throw new PresetRecallException("Failed to verify preset after recall");
         }
         if (current.get().number() != presetNumber) {
-            throw new IOException("Preset recall verification failed: expected " + presetNumber 
+            throw new PresetRecallException("Preset recall verification failed: expected " + presetNumber 
                 + " but got " + current.get().number());
         }
         
