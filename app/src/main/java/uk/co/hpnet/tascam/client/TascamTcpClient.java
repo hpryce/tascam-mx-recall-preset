@@ -101,7 +101,8 @@ public class TascamTcpClient implements TascamClient {
         
         // Query presets in batches to stay under 1024 byte limit
         for (int i = 1; i <= MAX_PRESET_NUMBER; i += BATCH_SIZE) {
-            String cmd = parser.buildPresetBatchCommand(i, BATCH_SIZE, MAX_PRESET_NUMBER, generateCid());
+            int count = Math.min(BATCH_SIZE, MAX_PRESET_NUMBER - i + 1);
+            String cmd = parser.buildPresetBatchCommand(i, count, generateCid());
             String response = sendCommand(cmd);
             presets.addAll(parser.parsePresetBatch(response));
         }
