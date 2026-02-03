@@ -49,8 +49,17 @@ public class Config {
      * @throws ConfigException if config file exists but is invalid
      */
     public static Config load() {
-        Path configPath = Path.of(System.getProperty("user.home"), CONFIG_FILENAME);
-        
+        return load(defaultConfigPath());
+    }
+    
+    /**
+     * Loads config from the specified path if it exists.
+     * Returns empty config if file doesn't exist.
+     * 
+     * @param configPath path to the config file
+     * @throws ConfigException if config file exists but is invalid
+     */
+    public static Config load(Path configPath) {
         if (!Files.exists(configPath)) {
             return empty();
         }
@@ -73,6 +82,13 @@ public class Config {
         } catch (IOException e) {
             throw new ConfigException("Failed to read " + configPath + ": " + e.getMessage());
         }
+    }
+    
+    /**
+     * Returns the default config file path.
+     */
+    public static Path defaultConfigPath() {
+        return Path.of(System.getProperty("user.home"), CONFIG_FILENAME);
     }
     
     /**

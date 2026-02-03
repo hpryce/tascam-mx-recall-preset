@@ -9,8 +9,6 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * TCP implementation of TascamClient for communicating with Tascam MX-DCP series mixers.
@@ -20,17 +18,14 @@ public class TascamTcpClient implements TascamClient {
     private static final Logger logger = LogManager.getLogger(TascamTcpClient.class);
 
     private static final int DEFAULT_TIMEOUT_MS = 10000;
+    private static final int MAX_PRESET_NUMBER = 50;
+    private static final int BATCH_SIZE = 5;
     private static final AtomicInteger GLOBAL_CID_COUNTER = new AtomicInteger(1000);
-    
-    private static final Pattern PRESET_NAME_PATTERN = Pattern.compile("PRESET/(\\d+)/NAME:\"([^\"]+)\"");
-    private static final Pattern PRESET_LOCK_PATTERN = Pattern.compile("PRESET/(\\d+)/LOCK:(ON|OFF)");
-    private static final Pattern PRESET_CLEARED_PATTERN = Pattern.compile("PRESET/(\\d+)/CLEARED:(TRUE|FALSE)");
-    private static final Pattern CURRENT_PRESET_PATTERN = Pattern.compile("PRESET/CUR:(\\d+)");
-    private static final Pattern CURRENT_NAME_PATTERN = Pattern.compile("PRESET/NAME:\"([^\"]+)\"");
 
     private final AtomicInteger cidCounter;
     private final long recallWaitMs;
     private final Sleeper sleeper;
+    private final ProtocolParser parser = new ProtocolParser();
     private Socket socket;
     private BufferedReader reader;
     private PrintWriter writer;
@@ -67,7 +62,7 @@ public class TascamTcpClient implements TascamClient {
         // Read "Enter Password" prompt
         String response = readLine();
         if (response == null || !response.contains("Enter Password")) {
-            throw new IOException("Unexpected response: " + response);
+            throw new TascamProtocolException("Unexpected response: " + response);
         }
 
         // Send password
@@ -77,13 +72,13 @@ public class TascamTcpClient implements TascamClient {
         // Read login result
         response = readLine();
         if (response == null) {
-            throw new IOException("No response after password");
+            throw new TascamProtocolException("No response after password");
         }
         if (response.contains("Another User Already Connected")) {
-            throw new IOException("Another user is already connected to the mixer");
+            throw new TascamProtocolException("Another user is already connected to the mixer");
         }
         if (!response.contains("Login Successful")) {
-            throw new IOException("Login failed: " + response);
+            throw new TascamProtocolException("Login failed: " + response);
         }
         logger.debug("Login successful");
     }
@@ -105,17 +100,11 @@ public class TascamTcpClient implements TascamClient {
         List<Preset> presets = new ArrayList<>();
         
         // Query presets in batches to stay under 1024 byte limit
-        for (int i = 1; i <= 50; i += 5) {
-            StringBuilder cmd = new StringBuilder("GET");
-            for (int j = i; j < i + 5 && j <= 50; j++) {
-                cmd.append(" PRESET/").append(j).append("/NAME");
-                cmd.append(" PRESET/").append(j).append("/LOCK");
-                cmd.append(" PRESET/").append(j).append("/CLEARED");
-            }
-            cmd.append(" CID:").append(generateCid());
-            
-            String response = sendCommand(cmd.toString());
-            parsePresetResponse(response, presets);
+        for (int i = 1; i <= MAX_PRESET_NUMBER; i += BATCH_SIZE) {
+            int count = Math.min(BATCH_SIZE, MAX_PRESET_NUMBER - i + 1);
+            String cmd = parser.buildPresetBatchCommand(i, count, generateCid());
+            String response = sendCommand(cmd);
+            presets.addAll(parser.parsePresetBatch(response));
         }
 
         presets.sort(Comparator.comparingInt(Preset::number));
@@ -124,38 +113,27 @@ public class TascamTcpClient implements TascamClient {
 
     @Override
     public Optional<Preset> getCurrentPreset() throws IOException {
-        String cid = generateCid();
-        String response = sendCommand("GET PRESET/CUR PRESET/NAME CID:" + cid);
-        
-        Matcher curMatcher = CURRENT_PRESET_PATTERN.matcher(response);
-        Matcher nameMatcher = CURRENT_NAME_PATTERN.matcher(response);
-        
-        if (!curMatcher.find() || !nameMatcher.find()) {
-            return Optional.empty();
-        }
-
-        int number = Integer.parseInt(curMatcher.group(1));
-        String name = nameMatcher.group(1);
-        // Lock status not queried for current preset - use Optional.empty()
-        return Optional.of(new Preset(number, name));
+        String cmd = parser.buildCurrentPresetCommand(generateCid());
+        String response = sendCommand(cmd);
+        return parser.parseCurrentPreset(response);
     }
 
     @Override
     public void recallPreset(int presetNumber) throws IOException {
-        if (presetNumber < 1 || presetNumber > 50) {
-            throw new IllegalArgumentException("Preset number must be between 1 and 50");
+        if (presetNumber < 1 || presetNumber > MAX_PRESET_NUMBER) {
+            throw new IllegalArgumentException("Preset number must be between 1 and " + MAX_PRESET_NUMBER);
         }
         
         // Check if we're already on this preset
         Optional<Preset> currentBefore = getCurrentPreset();
         boolean alreadyOnPreset = currentBefore.isPresent() && currentBefore.get().number() == presetNumber;
         
-        String cid = generateCid();
-        String response = sendCommand("SET PRESET/LOAD:" + presetNumber + " CID:" + cid);
+        String cmd = parser.buildRecallCommand(presetNumber, generateCid());
+        String response = sendCommand(cmd);
         
         // Response should be "OK SET CID:<id>"
         if (!response.startsWith("OK SET")) {
-            throw new IOException("Failed to recall preset: " + response);
+            throw new TascamProtocolException("Failed to recall preset: " + response);
         }
         
         // Wait for NOTIFY PRESET/CUR:<n> confirming the preset change is complete
@@ -179,7 +157,7 @@ public class TascamTcpClient implements TascamClient {
      * The mixer sends multiple NOTIFYs (mutes, levels, etc.) before the preset NOTIFY.
      */
     private void waitForPresetNotify(int presetNumber) throws IOException {
-        String expectedNotify = "NOTIFY PRESET/CUR:" + presetNumber;
+        String expectedNotify = parser.buildPresetNotifyPrefix(presetNumber);
         String notify;
         while ((notify = readLine()) != null) {
             logger.debug("Received: {}", notify);
@@ -225,41 +203,9 @@ public class TascamTcpClient implements TascamClient {
         
         String response = readLine();
         if (response == null) {
-            throw new IOException("No response from device");
+            throw new TascamProtocolException("No response from device");
         }
         return response;
-    }
-
-    private void parsePresetResponse(String response, List<Preset> presets) {
-        // Extract preset data from response
-        Map<Integer, String> names = new HashMap<>();
-        Map<Integer, Boolean> locks = new HashMap<>();
-        Map<Integer, Boolean> cleared = new HashMap<>();
-
-        Matcher nameMatcher = PRESET_NAME_PATTERN.matcher(response);
-        while (nameMatcher.find()) {
-            int num = Integer.parseInt(nameMatcher.group(1));
-            names.put(num, nameMatcher.group(2));
-        }
-
-        Matcher lockMatcher = PRESET_LOCK_PATTERN.matcher(response);
-        while (lockMatcher.find()) {
-            int num = Integer.parseInt(lockMatcher.group(1));
-            locks.put(num, "ON".equals(lockMatcher.group(2)));
-        }
-
-        Matcher clearedMatcher = PRESET_CLEARED_PATTERN.matcher(response);
-        while (clearedMatcher.find()) {
-            int num = Integer.parseInt(clearedMatcher.group(1));
-            cleared.put(num, "TRUE".equals(clearedMatcher.group(2)));
-        }
-
-        // Build preset objects for non-cleared slots
-        for (Integer num : names.keySet()) {
-            if (!cleared.getOrDefault(num, true)) {
-                presets.add(new Preset(num, names.get(num), locks.get(num)));
-            }
-        }
     }
 
     private String generateCid() {
