@@ -11,9 +11,6 @@ import java.util.regex.Pattern;
  */
 public class ProtocolParser {
 
-    public static final int MAX_PRESET_NUMBER = 50;
-    public static final int BATCH_SIZE = 5;
-
     private static final Pattern PRESET_NAME_PATTERN = Pattern.compile("PRESET/(\\d+)/NAME:\"([^\"]+)\"");
     private static final Pattern PRESET_LOCK_PATTERN = Pattern.compile("PRESET/(\\d+)/LOCK:(ON|OFF)");
     private static final Pattern PRESET_CLEARED_PATTERN = Pattern.compile("PRESET/(\\d+)/CLEARED:(TRUE|FALSE)");
@@ -24,12 +21,14 @@ public class ProtocolParser {
      * Builds a GET command for a batch of presets.
      *
      * @param startPreset first preset number in batch
+     * @param batchSize number of presets to query
+     * @param maxPreset maximum preset number
      * @param cid command ID
      * @return the command string
      */
-    public String buildPresetBatchCommand(int startPreset, String cid) {
+    public String buildPresetBatchCommand(int startPreset, int batchSize, int maxPreset, String cid) {
         StringBuilder cmd = new StringBuilder("GET");
-        for (int j = startPreset; j < startPreset + BATCH_SIZE && j <= MAX_PRESET_NUMBER; j++) {
+        for (int j = startPreset; j < startPreset + batchSize && j <= maxPreset; j++) {
             cmd.append(" PRESET/").append(j).append("/NAME");
             cmd.append(" PRESET/").append(j).append("/LOCK");
             cmd.append(" PRESET/").append(j).append("/CLEARED");

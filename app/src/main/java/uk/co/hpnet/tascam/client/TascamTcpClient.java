@@ -18,6 +18,8 @@ public class TascamTcpClient implements TascamClient {
     private static final Logger logger = LogManager.getLogger(TascamTcpClient.class);
 
     private static final int DEFAULT_TIMEOUT_MS = 10000;
+    private static final int MAX_PRESET_NUMBER = 50;
+    private static final int BATCH_SIZE = 5;
     private static final AtomicInteger GLOBAL_CID_COUNTER = new AtomicInteger(1000);
 
     private final AtomicInteger cidCounter;
@@ -98,8 +100,8 @@ public class TascamTcpClient implements TascamClient {
         List<Preset> presets = new ArrayList<>();
         
         // Query presets in batches to stay under 1024 byte limit
-        for (int i = 1; i <= ProtocolParser.MAX_PRESET_NUMBER; i += ProtocolParser.BATCH_SIZE) {
-            String cmd = parser.buildPresetBatchCommand(i, generateCid());
+        for (int i = 1; i <= MAX_PRESET_NUMBER; i += BATCH_SIZE) {
+            String cmd = parser.buildPresetBatchCommand(i, BATCH_SIZE, MAX_PRESET_NUMBER, generateCid());
             String response = sendCommand(cmd);
             presets.addAll(parser.parsePresetBatch(response));
         }
@@ -117,8 +119,8 @@ public class TascamTcpClient implements TascamClient {
 
     @Override
     public void recallPreset(int presetNumber) throws IOException {
-        if (presetNumber < 1 || presetNumber > ProtocolParser.MAX_PRESET_NUMBER) {
-            throw new IllegalArgumentException("Preset number must be between 1 and " + ProtocolParser.MAX_PRESET_NUMBER);
+        if (presetNumber < 1 || presetNumber > MAX_PRESET_NUMBER) {
+            throw new IllegalArgumentException("Preset number must be between 1 and " + MAX_PRESET_NUMBER);
         }
         
         // Check if we're already on this preset
