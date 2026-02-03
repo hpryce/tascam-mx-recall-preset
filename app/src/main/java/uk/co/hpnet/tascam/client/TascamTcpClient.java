@@ -24,6 +24,7 @@ public class TascamTcpClient implements TascamClient {
 
     private final AtomicInteger cidCounter;
     private final long recallWaitMs;
+    private final int timeoutMs;
     private final Sleeper sleeper;
     private final ProtocolParser parser = new ProtocolParser();
     private Socket socket;
@@ -31,20 +32,31 @@ public class TascamTcpClient implements TascamClient {
     private PrintWriter writer;
 
     /**
-     * Creates a client with custom recall wait time.
+     * Creates a client with custom recall wait time and default timeout.
      *
      * @param recallWaitMs milliseconds to wait after recall before verification (0 to skip verification)
      */
     public TascamTcpClient(long recallWaitMs) {
-        this(GLOBAL_CID_COUNTER, recallWaitMs, Sleeper.defaultSleeper());
+        this(recallWaitMs, DEFAULT_TIMEOUT_MS);
+    }
+
+    /**
+     * Creates a client with custom recall wait time and timeout.
+     *
+     * @param recallWaitMs milliseconds to wait after recall before verification (0 to skip verification)
+     * @param timeoutMs read timeout in milliseconds
+     */
+    public TascamTcpClient(long recallWaitMs, int timeoutMs) {
+        this(GLOBAL_CID_COUNTER, recallWaitMs, timeoutMs, Sleeper.defaultSleeper());
     }
 
     /**
      * Creates a client with custom dependencies (for testing).
      */
-    TascamTcpClient(AtomicInteger cidCounter, long recallWaitMs, Sleeper sleeper) {
+    TascamTcpClient(AtomicInteger cidCounter, long recallWaitMs, int timeoutMs, Sleeper sleeper) {
         this.cidCounter = cidCounter;
         this.recallWaitMs = recallWaitMs;
+        this.timeoutMs = timeoutMs;
         this.sleeper = sleeper;
     }
 
@@ -52,7 +64,7 @@ public class TascamTcpClient implements TascamClient {
     public void connect(String host, int port, String password) throws IOException {
         logger.debug("Connecting to {}:{}", host, port);
         socket = new Socket(host, port);
-        socket.setSoTimeout(DEFAULT_TIMEOUT_MS);
+        socket.setSoTimeout(timeoutMs);
         reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
         writer = new PrintWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8), true);
 

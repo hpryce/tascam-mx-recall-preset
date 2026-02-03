@@ -55,6 +55,9 @@ tascam-preset recall --host 192.168.1.100 -w 0 "My Preset"
 # With custom port
 tascam-preset list --host 192.168.1.100 -p 54726
 
+# With custom read timeout (seconds, default 10)
+tascam-preset list --host 192.168.1.100 -t 30
+
 # Enable debug output (raw protocol messages)
 tascam-preset --debug list --host 192.168.1.100
 ```
