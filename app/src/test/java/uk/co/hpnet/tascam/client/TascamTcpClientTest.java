@@ -25,14 +25,14 @@ class TascamTcpClientTest {
      * Creates a test client with a mock sleeper.
      */
     private TascamTcpClient createTestClient() {
-        return new TascamTcpClient(new AtomicInteger(1000), 5000, mockSleeper);
+        return new TascamTcpClient(new AtomicInteger(1000), 5000, mockSleeper, new ProtocolParser());
     }
 
     /**
      * Creates a test client with no wait (for tests that don't need to verify sleep).
      */
     private TascamTcpClient createTestClientNoWait() {
-        return new TascamTcpClient(new AtomicInteger(1000), 0, mockSleeper);
+        return new TascamTcpClient(new AtomicInteger(1000), 0, mockSleeper, new ProtocolParser());
     }
 
     @Test
