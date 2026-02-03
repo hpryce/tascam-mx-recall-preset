@@ -18,14 +18,12 @@ public class TascamTcpClient implements TascamClient {
     private static final Logger logger = LogManager.getLogger(TascamTcpClient.class);
 
     private static final int DEFAULT_TIMEOUT_MS = 10000;
-    private static final int MAX_PRESET_NUMBER = 50;
-    private static final int BATCH_SIZE = 5;
     private static final AtomicInteger GLOBAL_CID_COUNTER = new AtomicInteger(1000);
 
     private final AtomicInteger cidCounter;
     private final long recallWaitMs;
     private final Sleeper sleeper;
-    private final ProtocolParser parser;
+    private final ProtocolParser parser = new ProtocolParser();
     private Socket socket;
     private BufferedReader reader;
     private PrintWriter writer;
@@ -36,17 +34,16 @@ public class TascamTcpClient implements TascamClient {
      * @param recallWaitMs milliseconds to wait after recall before verification (0 to skip verification)
      */
     public TascamTcpClient(long recallWaitMs) {
-        this(GLOBAL_CID_COUNTER, recallWaitMs, Sleeper.defaultSleeper(), new ProtocolParser());
+        this(GLOBAL_CID_COUNTER, recallWaitMs, Sleeper.defaultSleeper());
     }
 
     /**
      * Creates a client with custom dependencies (for testing).
      */
-    TascamTcpClient(AtomicInteger cidCounter, long recallWaitMs, Sleeper sleeper, ProtocolParser parser) {
+    TascamTcpClient(AtomicInteger cidCounter, long recallWaitMs, Sleeper sleeper) {
         this.cidCounter = cidCounter;
         this.recallWaitMs = recallWaitMs;
         this.sleeper = sleeper;
-        this.parser = parser;
     }
 
     @Override
@@ -101,17 +98,10 @@ public class TascamTcpClient implements TascamClient {
         List<Preset> presets = new ArrayList<>();
         
         // Query presets in batches to stay under 1024 byte limit
-        for (int i = 1; i <= MAX_PRESET_NUMBER; i += BATCH_SIZE) {
-            StringBuilder cmd = new StringBuilder("GET");
-            for (int j = i; j < i + BATCH_SIZE && j <= MAX_PRESET_NUMBER; j++) {
-                cmd.append(" PRESET/").append(j).append("/NAME");
-                cmd.append(" PRESET/").append(j).append("/LOCK");
-                cmd.append(" PRESET/").append(j).append("/CLEARED");
-            }
-            cmd.append(" CID:").append(generateCid());
-            
-            String response = sendCommand(cmd.toString());
-            parser.parsePresetBatch(response, presets);
+        for (int i = 1; i <= ProtocolParser.MAX_PRESET_NUMBER; i += ProtocolParser.BATCH_SIZE) {
+            String cmd = parser.buildPresetBatchCommand(i, generateCid());
+            String response = sendCommand(cmd);
+            presets.addAll(parser.parsePresetBatch(response));
         }
 
         presets.sort(Comparator.comparingInt(Preset::number));
@@ -120,23 +110,23 @@ public class TascamTcpClient implements TascamClient {
 
     @Override
     public Optional<Preset> getCurrentPreset() throws IOException {
-        String cid = generateCid();
-        String response = sendCommand("GET PRESET/CUR PRESET/NAME CID:" + cid);
+        String cmd = parser.buildCurrentPresetCommand(generateCid());
+        String response = sendCommand(cmd);
         return parser.parseCurrentPreset(response);
     }
 
     @Override
     public void recallPreset(int presetNumber) throws IOException {
-        if (presetNumber < 1 || presetNumber > MAX_PRESET_NUMBER) {
-            throw new IllegalArgumentException("Preset number must be between 1 and " + MAX_PRESET_NUMBER);
+        if (presetNumber < 1 || presetNumber > ProtocolParser.MAX_PRESET_NUMBER) {
+            throw new IllegalArgumentException("Preset number must be between 1 and " + ProtocolParser.MAX_PRESET_NUMBER);
         }
         
         // Check if we're already on this preset
         Optional<Preset> currentBefore = getCurrentPreset();
         boolean alreadyOnPreset = currentBefore.isPresent() && currentBefore.get().number() == presetNumber;
         
-        String cid = generateCid();
-        String response = sendCommand("SET PRESET/LOAD:" + presetNumber + " CID:" + cid);
+        String cmd = parser.buildRecallCommand(presetNumber, generateCid());
+        String response = sendCommand(cmd);
         
         // Response should be "OK SET CID:<id>"
         if (!response.startsWith("OK SET")) {
@@ -164,7 +154,7 @@ public class TascamTcpClient implements TascamClient {
      * The mixer sends multiple NOTIFYs (mutes, levels, etc.) before the preset NOTIFY.
      */
     private void waitForPresetNotify(int presetNumber) throws IOException {
-        String expectedNotify = "NOTIFY PRESET/CUR:" + presetNumber;
+        String expectedNotify = parser.buildPresetNotifyPrefix(presetNumber);
         String notify;
         while ((notify = readLine()) != null) {
             logger.debug("Received: {}", notify);

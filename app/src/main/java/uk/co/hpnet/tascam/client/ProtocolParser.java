@@ -7,9 +7,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Parses protocol responses from Tascam MX-DCP series mixers.
+ * Parses and builds protocol messages for Tascam MX-DCP series mixers.
  */
 public class ProtocolParser {
+
+    public static final int MAX_PRESET_NUMBER = 50;
+    public static final int BATCH_SIZE = 5;
 
     private static final Pattern PRESET_NAME_PATTERN = Pattern.compile("PRESET/(\\d+)/NAME:\"([^\"]+)\"");
     private static final Pattern PRESET_LOCK_PATTERN = Pattern.compile("PRESET/(\\d+)/LOCK:(ON|OFF)");
@@ -18,12 +21,61 @@ public class ProtocolParser {
     private static final Pattern CURRENT_NAME_PATTERN = Pattern.compile("PRESET/NAME:\"([^\"]+)\"");
 
     /**
-     * Parses a batch response containing preset info and adds non-cleared presets to the list.
+     * Builds a GET command for a batch of presets.
+     *
+     * @param startPreset first preset number in batch
+     * @param cid command ID
+     * @return the command string
+     */
+    public String buildPresetBatchCommand(int startPreset, String cid) {
+        StringBuilder cmd = new StringBuilder("GET");
+        for (int j = startPreset; j < startPreset + BATCH_SIZE && j <= MAX_PRESET_NUMBER; j++) {
+            cmd.append(" PRESET/").append(j).append("/NAME");
+            cmd.append(" PRESET/").append(j).append("/LOCK");
+            cmd.append(" PRESET/").append(j).append("/CLEARED");
+        }
+        cmd.append(" CID:").append(cid);
+        return cmd.toString();
+    }
+
+    /**
+     * Builds a GET command for current preset info.
+     *
+     * @param cid command ID
+     * @return the command string
+     */
+    public String buildCurrentPresetCommand(String cid) {
+        return "GET PRESET/CUR PRESET/NAME CID:" + cid;
+    }
+
+    /**
+     * Builds a SET command to recall a preset.
+     *
+     * @param presetNumber preset to recall
+     * @param cid command ID
+     * @return the command string
+     */
+    public String buildRecallCommand(int presetNumber, String cid) {
+        return "SET PRESET/LOAD:" + presetNumber + " CID:" + cid;
+    }
+
+    /**
+     * Builds the expected NOTIFY string for a preset change.
+     *
+     * @param presetNumber the preset number
+     * @return the expected notify prefix
+     */
+    public String buildPresetNotifyPrefix(int presetNumber) {
+        return "NOTIFY PRESET/CUR:" + presetNumber;
+    }
+
+    /**
+     * Parses a batch response containing preset info.
      *
      * @param response the raw response string
-     * @param presets list to add parsed presets to
+     * @return list of non-cleared presets found in the response
      */
-    public void parsePresetBatch(String response, List<Preset> presets) {
+    public List<Preset> parsePresetBatch(String response) {
         Map<Integer, String> names = new HashMap<>();
         Map<Integer, Boolean> locks = new HashMap<>();
         Map<Integer, Boolean> cleared = new HashMap<>();
@@ -47,11 +99,13 @@ public class ProtocolParser {
         }
 
         // Build preset objects for non-cleared slots
+        List<Preset> presets = new ArrayList<>();
         for (Integer num : names.keySet()) {
             if (!cleared.getOrDefault(num, true)) {
                 presets.add(new Preset(num, names.get(num), locks.get(num)));
             }
         }
+        return presets;
     }
 
     /**
