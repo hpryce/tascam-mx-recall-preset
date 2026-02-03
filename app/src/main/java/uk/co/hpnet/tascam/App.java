@@ -30,6 +30,7 @@ import java.util.concurrent.Callable;
 public class App implements Callable<Integer> {
 
     private static final int DEFAULT_PORT = 54726;
+    private static final int DEFAULT_TIMEOUT_SECONDS = 10;
 
     @Option(names = {"-d", "--debug"}, description = "Enable debug output (raw protocol messages)")
     private boolean debug;
@@ -40,10 +41,13 @@ public class App implements Callable<Integer> {
     @Option(names = {"-p", "--port"}, description = "Mixer port (default: 54726)")
     private Integer port;
 
+    @Option(names = {"-t", "--timeout"}, description = "Read timeout in seconds (default: 10)")
+    private Integer timeoutSeconds;
+
     /**
      * Resolved connection settings.
      */
-    record ConnectionSettings(String host, int port, String password) {}
+    record ConnectionSettings(String host, int port, String password, int timeoutMs) {}
 
     /**
      * Resolves connection settings from CLI args and config file.
@@ -63,7 +67,10 @@ public class App implements Callable<Integer> {
         
         String effectivePassword = config.password().orElseGet(App::promptForPassword);
         
-        return new ConnectionSettings(effectiveHost, effectivePort, effectivePassword);
+        int effectiveTimeoutMs = Optional.ofNullable(timeoutSeconds)
+            .orElse(DEFAULT_TIMEOUT_SECONDS) * 1000;
+        
+        return new ConnectionSettings(effectiveHost, effectivePort, effectivePassword, effectiveTimeoutMs);
     }
 
     @Command(name = "list", description = "List all presets", mixinStandardHelpOptions = true)
@@ -77,7 +84,7 @@ public class App implements Callable<Integer> {
             try {
                 ConnectionSettings conn = parent.resolveConnectionSettings();
                 
-                try (TascamClient client = new TascamTcpClient(0)) {
+                try (TascamClient client = new TascamTcpClient(0, conn.timeoutMs())) {
                     client.connect(conn.host(), conn.port(), conn.password());
                     
                     List<Preset> presets = client.listPresets();
@@ -132,7 +139,7 @@ public class App implements Callable<Integer> {
                 ConnectionSettings conn = parent.resolveConnectionSettings();
                 long waitMs = (long) (waitSeconds * 1000);
                 
-                try (TascamClient client = new TascamTcpClient(waitMs)) {
+                try (TascamClient client = new TascamTcpClient(waitMs, conn.timeoutMs())) {
                     client.connect(conn.host(), conn.port(), conn.password());
                     
                     // Find preset by name
